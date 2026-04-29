@@ -1,0 +1,96 @@
+---
+title: Sentry
+excerpt: Learn how to integrate Sentry with apalis to monitor and trace background tasks efficiently in Rust applications. 
+bottomNavigation: pagination
+---
+
+## Introduction
+
+Monitoring and tracing are crucial aspects of any production system, especially when dealing with background tasks. apalis, a powerful Rust library for task and message processing, can be seamlessly integrated with Sentry, a popular error tracking and performance monitoring platform. In this guide, we'll explore how to use Sentry with apalis to gain insights into your task processing and ensure that errors are tracked and resolved efficiently.
+
+## Why use Sentry?
+
+Sentry is a platform that provides real-time error tracking and performance monitoring. It allows developers to monitor the health of their applications, identify bottlenecks, and track down errors. By integrating Sentry with apalis, you can:
+
+1. **Monitor Background Tasks**: Keep track of each task's progress and identify issues as they arise.
+2. **Trace Execution**: Use Sentry's tracing capabilities to follow the execution path of tasks, including any database queries, external API calls, or other operations.
+3. **Capture Errors**: Automatically capture and report errors, along with context that helps diagnose and fix the root cause.
+
+## Setting Up
+
+To get started with Sentry in an apalis application, you'll first need to set up Sentry and configure it within your Rust environment. 
+
+### Initializing
+
+Begin by initializing Sentry in your `main` function. You'll need to set your Sentry DSN (Data Source Name) and configure options such as the release name and traces sample rate.
+
+```rust
+let _guard = sentry::init((
+    std::env::var("SENTRY_DSN").expect("Please set SENTRY_DSN environmental variable"),
+    sentry::ClientOptions {
+        release: sentry::release_name!(),
+        traces_sample_rate: 0.2,
+        ..Default::default()
+    },
+));
+```
+
+This snippet ensures that Sentry is properly initialized and ready to capture any errors or performance issues that occur during the execution of your tasks.
+
+### Decorate with middleware
+
+To integrate Sentry with your apalis workers, you can use `sentry_tower::NewSentryLayer` and `SentryLayer`. These layers help you automatically capture errors and span information within your task processing logic.
+
+For instance, when creating a worker to process emails, you would configure it like this:
+
+```rust
+Monitor::new()
+    .register_with_count(2, {
+        WorkerBuilder::new("tasty-avocado")
+            .layer(NewSentryLayer::new_from_top())
+            .layer(SentryLayer::new())
+            .layer(TraceLayer::new())
+            .backend(storage.clone())
+            .build(email_service)
+    })
+    .run()
+    .await?;
+```
+
+### Tracing and Capturing Errors
+
+Within your task processing function, you can use Sentry's transaction and span features to trace the execution flow and capture errors in context. For example, you might want to start a transaction when processing an email, and create spans for different stages such as DNS checking, fetching Sendgrid details, and user retrieval:
+
+````rs
+async fn email_service(email: Email) -> Result<(), InvalidEmailError> {
+    let transaction = sentry::start_transaction(
+        sentry::TransactionContext::continue_from_span("email.send", "apalis.task", parent_span)
+    );
+
+    {
+        let dns_span = transaction.start_child("dns", "Checking if DNS is configured");
+        // DNS checking logic here
+        dns_span.finish();
+    }
+
+    tracing::warn!("Failed. Email is not valid");
+    transaction.finish();
+    Err(InvalidEmailError { email: email.to })
+}
+````
+
+By structuring your task processing with transactions and spans, you create a detailed trace in Sentry, allowing you to understand the flow of execution and pinpoint where issues occur.
+
+### Best Practices
+
+1. **Granular Tracing**: Break down your task processing into meaningful spans to get detailed insights into each step of the process. This helps in identifying slow operations or failures in specific parts of your task logic.
+2. **Error Handling**: Ensure that all errors are captured by Sentry. Use structured error handling and consider capturing non-critical warnings or information to help with diagnosing issues.
+3. **Transaction Naming**: Use meaningful names for your transactions and spans. This makes it easier to search and filter traces in Sentry's dashboard.
+4. **Contextual Information**: Leverage Sentry's context capabilities to attach additional information to your transactions and errors, such as task identifiers, user details, or environment data. This can significantly aid in debugging.
+5. **Monitoring Performance**: Besides error tracking, use Sentry's performance monitoring features to identify bottlenecks in your task processing. This can help you optimize your system's performance over time.
+
+## Conclusion
+
+Integrating Sentry with apalis provides a powerful solution for monitoring and tracing background task execution in Rust. By following the practices outlined in this guide, you can ensure that your task processing is reliable, errors are tracked and resolved promptly, and performance bottlenecks are identified and addressed. As your application grows, this integration will become invaluable in maintaining a robust and efficient system.
+
+If you're ready to take your apalis setup to the next level, dive into the apalis documentation and start exploring more advanced configurations. For more on Sentry, visit their official documentation.

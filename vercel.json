@@ -1,6 +1,0 @@
-{
-  "framework": "nextjs",
-  "installCommand": "yarn install --immutable",
-  "buildCommand": "yarn build",
-  "outputDirectory": ".next"
-}

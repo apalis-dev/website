@@ -1,0 +1,146 @@
+---
+title: Use cases
+excerpt: Outlines the common use cases and application scenarios for apalis. It demonstrates how Apalis can be applied to solve various asynchronous processing needs in real-world applications.
+bottomNavigation: pagination
+---
+
+This document outlines the common use cases and application scenarios for apalis. It demonstrates how Apalis can be applied to solve various asynchronous processing needs in real-world applications.
+
+## Common Background Processing Scenarios
+
+Apalis excels in scenarios where work needs to be performed asynchronously, outside the critical path of a user request or system operation. Here are the primary use cases:
+
+### Asynchronous Email Processing
+
+One of the most common use cases for background task processing is sending emails. This prevents user-facing operations from being blocked while waiting for email delivery.
+
+With Apalis, you can enqueue email jobs (e.g., welcome emails, password resets, notifications) and process them in the background using dedicated workers. This ensures:
+
+- Faster response times for user-facing APIs  
+- Improved reliability through retries and error handling  
+- Better scalability when handling large volumes of emails  
+
+Typical workflow:
+
+1. A user signs up or triggers an action  
+2. Your application enqueues an `EmailJob`  
+3. A worker picks up the job and sends the email  
+4. Failures are retried or logged for inspection  
+
+---
+
+### Scheduled and Delayed Jobs
+
+Many applications require tasks to run at a later time or on a schedule. Apalis supports delayed execution and scheduling, making it ideal for:
+
+- Sending reminder emails (e.g., “Your subscription expires tomorrow”)  
+- Running periodic cleanup jobs  
+- Generating daily or weekly reports  
+- Retrying failed operations after a delay  
+
+You can enqueue jobs with a delay or integrate with schedulers to trigger recurring tasks.
+
+---
+
+### Data Processing Pipelines
+
+Apalis can be used to build robust data pipelines that process large volumes of data in the background. This is especially useful for:
+
+- ETL (Extract, Transform, Load) workflows  
+- Log processing and aggregation  
+- Image/video processing  
+- File parsing and indexing  
+
+Workers can process jobs concurrently, enabling efficient handling of high-throughput workloads.
+
+Learn more about [Sequential Workflows](/docs/guides/workflows/sequential-workflow) which provides durable and distributed pipelined processings
+
+---
+
+### Webhook Handling and Event Processing
+
+External systems often send webhooks that need to be processed reliably. Instead of handling them synchronously, Apalis allows you to:
+
+- Quickly acknowledge incoming webhook requests  
+- Enqueue jobs for processing the payload  
+- Handle retries and failures gracefully  
+
+This is useful for integrations with payment providers, CRMs, and third-party APIs.
+
+---
+
+### Background Computation and Heavy Tasks
+
+Some operations are computationally expensive and should not block the main application thread. Apalis is well-suited for:
+
+- Generating PDFs or reports  
+- Running machine learning inference jobs  
+- Performing cryptographic operations  
+- Complex business logic processing  
+
+By offloading these tasks to workers, your application remains responsive and scalable.
+
+Learn more about [Parallelizing tasks](/docs/guides/workers/middleware#parallelize) and [Long Running Tasks](/docs/guides/workers/middleware#long-running-jobs).
+
+---
+
+### Task Orchestration and Workflows
+
+Apalis can coordinate multi-step workflows where tasks depend on each other. This is useful for:
+
+- Order processing systems (payment → inventory → shipping)  
+- Multi-stage data transformations  
+- Distributed job coordination  
+
+You can model workflows as a series of jobs, where each step enqueues the next, enabling flexible and composable pipelines.
+
+Learn more about [Sequential Workflows](/docs/guides/workflows/sequential-workflow) and [DAG Workflows](/docs/guides/workflows/dag-workflow).
+
+---
+
+### Retry and Failure Handling
+
+Failures are inevitable in distributed systems. Apalis provides mechanisms to handle them effectively:
+
+- Automatic retries with backoff strategies  
+- Dead-letter queues for failed jobs  
+- Error tracking and logging  
+- Idempotent job design support  
+
+This ensures that your system remains robust even in the face of transient failures.
+
+See [Retries](/docs/guides/tasks/error-handling#retries) and [Catching Panics](/docs/guides/tasks/error-handling#catching-panics) for more.
+
+---
+
+### Rate-Limited and External API Calls
+
+When interacting with third-party APIs, you often need to respect rate limits. Apalis helps by:
+
+- Controlling concurrency of workers  
+- Queueing requests to smooth out spikes  
+- Retrying failed API calls safely  
+
+This is particularly useful for integrations with services that enforce strict quotas.
+
+---
+
+## When to Use Apalis
+
+Apalis is a good fit when:
+
+- You need reliable background job processing  
+- Tasks can be performed asynchronously  
+- You want to scale workers independently of your main application  
+- You need retries, scheduling, or workflow orchestration  
+
+It may not be necessary if:
+
+- All operations must be strictly synchronous  
+- The workload is trivial and does not benefit from background processing  
+
+---
+
+## Summary
+
+Apalis provides a flexible and powerful foundation for handling asynchronous work in Rust applications. Whether you're sending emails, processing data, or orchestrating complex workflows, it helps you build systems that are scalable, reliable, and responsive.

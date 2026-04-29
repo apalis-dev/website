@@ -1,0 +1,217 @@
+---
+title: Tracing
+excerpt: Apalis integrates with the `tracing` ecosystem out of the box — giving every task its own span, propagating trace context across service boundaries, and letting you customise span fields with `MakeSpan`.
+bottomNavigation: pagination
+---
+
+Apalis integrates natively with Rust's [`tracing`](https://docs.rs/tracing/latest/tracing/) ecosystem. Every task execution can produce a structured span containing the task ID, attempt number, queue name, and any distributed trace context that was attached at enqueue time. This makes it straightforward to correlate background job activity with the HTTP requests, gRPC calls, or events that triggered them.
+
+---
+
+## Quick Start
+
+The simplest way to add tracing to a worker is `.enable_tracing()` on `WorkerBuilder`. This attaches a `TraceLayer` with sensible defaults — one span per task, named `"task"`, at `INFO` level.
+```rust
+let worker = WorkerBuilder::new("tasty-avocado")
+    .backend(backend)
+    .enable_tracing()
+    .build(email_service);
+```
+
+Each task execution will produce a span that looks like this in your subscriber output:
+```
+INFO task{task_id="01J..." attempt=1}: email_service: Checking if dns configured
+INFO task{task_id="01J..." attempt=1}: email_service: Failed in 1 sec
+```
+
+`.enable_tracing()` is the right choice when:
+- You want structured per-task spans with no configuration
+- You do not need to propagate trace context from an upstream service
+- You are not integrating with an external tracing backend (Jaeger, Datadog, Honeycomb, etc.)
+
+---
+
+## Distributed Trace Context
+
+In distributed systems, a background job is often triggered by an upstream request. To keep that causal chain intact in your tracing backend, you need to propagate the trace context — the `trace_id`, `span_id`, and flags from the originating request — into the task itself.
+
+### Attaching context at enqueue time
+
+`TracingContext` is a metadata type you attach to a `Task` when pushing it. It carries the W3C TraceContext fields:
+```rust
+use apalis::layers::tracing::TracingContext;
+use apalis::prelude::*;
+
+let context = TracingContext::new()
+    .with_trace_id("1234567890abcdef")
+    .with_span_id("abcdef1234567890")
+    .with_trace_flags(1)
+    .with_trace_state("key=value");
+
+let task = Task::builder(email).meta(context).build();
+storage.send(task).await?;
+```
+
+In practice, `trace_id` and `span_id` come from the active span in your HTTP handler — extract them from the current `tracing::Span` or your OpenTelemetry context before enqueuing.
+
+### Emitting context-aware spans on the worker
+
+To have the worker read that stored context and include it in the task span, swap `.enable_tracing()` for an explicit `TraceLayer` with `ContextualTaskSpan`:
+```rust
+use apalis::layers::tracing::{ContextualTaskSpan, TraceLayer};
+
+let worker = WorkerBuilder::new("tasty-pear")
+    .backend(backend)
+    .layer(TraceLayer::new().make_span_with(ContextualTaskSpan::new()))
+    .build(email_service);
+```
+
+The resulting span now includes the upstream trace fields alongside the task metadata:
+```
+INFO task{
+    task_id="01J..."
+    attempt=1
+    trace_id="1234567890abcdef"
+    span_id="abcdef1234567890"
+    trace_flags=1
+    trace_state="key=value"
+}: email_service: Checking if dns configured
+```
+
+This ties the job execution back to the originating request in tools like Jaeger, Tempo, or Honeycomb — even though the job ran asynchronously, potentially much later.
+
+---
+
+## Choosing Between the Two Approaches
+
+| | `enable_tracing()` | `TraceLayer` + `ContextualTaskSpan` |
+|---|---|---|
+| Per-task span | ✓ | ✓ |
+| Task ID and attempt | ✓ | ✓ |
+| Upstream trace propagation | ✗ | ✓ |
+| Custom span fields | ✗ | ✓ via custom `MakeSpan` |
+| Setup complexity | Minimal | Low |
+
+Use `enable_tracing()` for standalone workers. Use `ContextualTaskSpan` whenever jobs are enqueued from instrumented request handlers and you want end-to-end trace continuity.
+
+---
+
+## Custom Span Shape with `MakeSpan`
+
+Both `enable_tracing()` and `TraceLayer` use the `MakeSpan` trait to construct the span for each task. You can implement it yourself to produce spans with exactly the fields your observability stack expects.
+
+### The `MakeSpan` trait
+```rust
+pub trait MakeSpan<Args, Ctx, IdType> {
+    fn make_span(&mut self, req: &Task<Args, Ctx, IdType>) -> Span;
+}
+```
+
+Your implementation receives the full `Task` — including its ID, attempt counter, context, and payload — and returns a `tracing::Span`.
+
+### Example: span with queue name and payload size
+
+Suppose you want each span to include the queue name and the serialized size of the task payload, in addition to the standard fields. You might also want to emit at `DEBUG` level rather than `INFO`:
+```rust
+use apalis::layers::tracing::{MakeSpan, TraceLayer};
+use apalis::prelude::*;
+use tracing::{Level, Span};
+use std::fmt::Display;
+
+#[derive(Clone)]
+pub struct DetailedTaskSpan {
+    pub queue: String,
+    pub level: Level,
+}
+
+impl DetailedTaskSpan {
+    pub fn new(queue: impl Into<String>) -> Self {
+        Self {
+            queue: queue.into(),
+            level: Level::DEBUG,
+        }
+    }
+}
+
+impl<Args, Ctx, IdType> MakeSpan<Args, Ctx, IdType> for DetailedTaskSpan
+where
+    IdType: Display,
+{
+    fn make_span(&mut self, req: &Task<Args, Ctx, IdType>) -> Span {
+        let task_id = req
+            .parts
+            .task_id
+            .as_ref()
+            .expect("A task must have an ID")
+            .to_string();
+        let attempt = req.parts.attempt.current();
+        let queue = &self.queue;
+        let parent = Span::current();
+
+        macro_rules! make_span {
+            ($level:expr) => {
+                tracing::span!(
+                    parent: parent,
+                    $level,
+                    "task",
+                    task_id  = %task_id,
+                    attempt  = attempt,
+                    queue    = %queue,
+                )
+            };
+        }
+
+        match self.level {
+            Level::ERROR => make_span!(Level::ERROR),
+            Level::WARN  => make_span!(Level::WARN),
+            Level::INFO  => make_span!(Level::INFO),
+            Level::DEBUG => make_span!(Level::DEBUG),
+            Level::TRACE => make_span!(Level::TRACE),
+        }
+    }
+}
+```
+
+Register it on the worker the same way as `ContextualTaskSpan`:
+```rust
+let worker = WorkerBuilder::new("tasty-mango")
+    .backend(backend)
+    .layer(
+        TraceLayer::new()
+            .make_span_with(DetailedTaskSpan::new("email-queue"))
+    )
+    .build(email_service);
+```
+
+The resulting spans will include `queue` and emit at `DEBUG` level, while remaining a child of whatever span was active when `poll` was called.
+
+---
+
+## Setting Up a Subscriber
+
+Apalis's tracing integration emits standard `tracing` events and spans — any compatible subscriber will capture them. A minimal setup using `tracing-subscriber`:
+```rust
+use tracing_subscriber::{prelude::*, EnvFilter};
+
+tracing_subscriber::registry()
+    .with(EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info")))
+    .with(tracing_subscriber::fmt::layer().with_target(false))
+    .init();
+```
+
+For production use, swap the `fmt` layer for an OpenTelemetry exporter (e.g. `opentelemetry-otlp`) to forward spans to Jaeger, Tempo, Honeycomb, or Datadog.
+
+---
+
+## Summary
+
+| Tool | Purpose |
+|---|---|
+| `.enable_tracing()` | One-line default tracing — span per task with ID and attempt |
+| `TraceLayer::new()` | Explicit tracing layer, composable with other middleware |
+| `ContextualTaskSpan` | Reads stored `TracingContext` to propagate upstream trace IDs |
+| `TracingContext` | Metadata type for attaching W3C trace fields at enqueue time |
+| `MakeSpan` trait | Implement to fully control the shape of each task's span |
+
+
