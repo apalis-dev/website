@@ -1,0 +1,140 @@
+---
+title: Web UI
+excerpt: Learn how to set up apalis-board — the real-time web dashboard for managing Apalis queues, inspecting tasks, monitoring workers, and streaming live logs from your backends.
+bottomNavigation: pagination
+---
+
+`apalis-board` is a web-based management interface for Apalis backends. It gives you a live view of what is happening across your queues — task status, worker activity, queue health, and real-time log streaming — and lets you act on tasks directly from the browser without writing any extra code.
+
+---
+
+## What the Dashboard Provides
+
+- **Queues overview** — throughput, error rates, and 7-day activity sparklines per queue
+- **Task browser** — list, filter by status, and inspect individual tasks including their payload and context
+- **Worker monitor** — see which workers are running, which queue each is bound to, and when they last sent a heartbeat
+- **Live log stream** — stream `tracing` events from running workers directly to the browser via `/api/v1/events`
+
+---
+
+## Crates
+
+`apalis-board` is split into focused sub-crates so you only pull in what you need:
+
+| Crate | Purpose |
+|---|---|
+| [`apalis-board-types`](https://docs.rs/apalis-board-types) | Shared types used across the board ecosystem |
+| [`apalis-board-api`](https://docs.rs/apalis-board-api) | REST API utilities for `axum` and `actix` |
+| [`apalis-board-web`](https://docs.rs/apalis-board-web) | The Leptos-based frontend UI |
+
+---
+
+## Installation
+
+Add `apalis-board` to your `Cargo.toml` and enable the feature for your HTTP framework:
+```toml
+# For Actix Web
+apalis-board = { version = "1.0.0-rc.6", features = ["actix"] }
+
+# For Axum
+apalis-board = { version = "1.0.0-rc.6", features = ["axum"] }
+```
+
+Each release of `apalis-board` bundles a matching version of the compiled frontend — no separate frontend build step is required for standard use.
+
+---
+
+## Basic Setup
+
+Mount the API and serve the frontend alongside your existing application. The `ApiBuilder` accepts any number of registered backends:
+```rust
+App::new()
+    .service(
+        ApiBuilder::new(Scope::new("/api/v1"))
+            .register(notification_store)  // register each backend you want to expose
+            .register(email_store)
+            .build(),
+    )
+    .service(ServeApp::new())  // serves the compiled frontend at /
+```
+
+Each registered backend must implement the [`Expose`](/docs/guides/backend/maintainance) trait — providing `ListQueues`, `ListWorkers`, `ListTasks`, `Metrics`, and `TaskSink`. Backends that do not implement `Expose` cannot be registered.
+
+Once running, navigate to `/` in your browser to open the dashboard.
+
+---
+
+## Real-Time Log Streaming
+
+The dashboard can stream live `tracing` events from your workers to the browser. This is powered by a `TracingBroadcaster` that acts as a `tracing` subscriber layer, forwarding events over a server-sent events endpoint at `/api/v1/events`.
+```rust
+// 1. Create the broadcaster and subscriber.
+let broadcaster = TracingBroadcaster::create();
+let tracing_subscriber = TracingSubscriber::new(&broadcaster);
+
+let tracing_layer = tracing_subscriber
+    .layer()
+    .with_filter(EnvFilter::builder().parse("debug").unwrap());
+
+// 2. Register as a tracing layer — replaces your existing subscriber init.
+tracing_subscriber::registry()
+    .with(tracing_layer)
+    .init();
+
+// 3. Share the broadcaster with the Actix app.
+App::new()
+    .app_data(broadcaster.clone())
+    // ... rest of your app
+```
+
+With this in place, the **Logs** page in the dashboard (`/logs`) will show a live feed of `tracing` events from all registered workers. You can also consume the raw stream directly at `/api/v1/events` — it is a standard server-sent events endpoint.
+
+> The log stream reflects whatever filter level you pass to `EnvFilter`. Use `"info"` for production and `"debug"` during development.
+
+---
+
+## Backend Support
+
+Not all backends support the full `Expose` surface yet. Current support status:
+
+| Backend | Support |
+|---|---|
+| `apalis-sqlite` | ✅ Full support |
+| `apalis-postgres` | ✅ Full support |
+| `apalis-mysql` | ✅ Full support |
+| `apalis-redis` | ⚠️ Partial support |
+| `apalis-amqp` | ⌛ In progress, partial |
+| `apalis-cron` | ❌ Not supported |
+| `apalis-rsmq` | ⌛ In progress |
+| `apalis-pgmq` | ⌛ In progress |
+| `apalis-file-storage` | ⌛ In progress, partial |
+
+Backends marked ✅ support all dashboard features including task browsing, metrics, and worker listing. Backends marked ⚠️ support a subset — typically worker listing and basic metrics, but not full task introspection.
+
+---
+
+## Embedding in a Leptos Application
+
+If you are building a Leptos frontend and want to embed the board UI — in full or as a component within a larger interface — enable the `web` feature instead:
+```toml
+apalis-board = { version = "1.0.0-rc.6", features = ["web"] }
+```
+
+This gives you access to `apalis-board-web` components that can be composed into your own Leptos views.
+
+---
+
+## Examples
+
+Two reference examples are available in the `apalis-board` repository:
+
+- [`axum-email-service`](https://github.com/apalis-dev/apalis-board/tree/main/examples/axum-email-service) — sends emails via SMTP using `lettre` and `axum`, with the board mounted alongside
+- [`actix-ntfy-service`](https://github.com/apalis-dev/apalis-board/tree/main/examples/actix-ntfy-service) — publishes notifications via `ntfy.sh` using `actix`, with the board mounted alongside
+
+Both examples demonstrate the full setup: backend registration, frontend serving, and real-time log streaming.
+
+---
+
+## Summary
+
+`apalis-board` turns the [`Expose`](/docs/guides/backend/maintainance) trait into a live management interface. Register your backends, mount the API and frontend, and you get queue visualisation, task inspection, worker health monitoring, and log streaming — all from a single `ApiBuilder` call.

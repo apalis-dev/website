@@ -1,0 +1,162 @@
+---
+title: Expose
+excerpt: The `Expose` trait marks a backend as fully observable — enabling queue introspection, worker listing, task filtering, and metrics collection for monitoring and management tooling.
+bottomNavigation: pagination
+---
+
+Beyond delivering tasks to workers, a backend can optionally expose **management and observability capabilities** — the ability to inspect queues, enumerate running workers, list tasks by status, and collect runtime statistics. These capabilities are what power dashboards, health checks, and operational tooling built on top of Apalis.
+
+Each capability is expressed as a focused trait. A backend that implements all of them satisfies the [`Expose`](#the-expose-trait) bound — a marker that signals the backend is ready for full introspection.
+
+---
+
+## The `Expose` Trait
+
+`Expose<Args>` is a **marker trait** — it has no methods of its own. It is automatically implemented for any backend that satisfies all of the following:
+
+| Trait | Responsibility |
+|---|---|
+| [`Metrics`](#metrics) | Global and per-queue runtime statistics |
+| [`ListWorkers`](#listing-workers) | Enumerate workers registered with the backend |
+| [`ListQueues`](#listing-queues) | Enumerate queues available in the backend |
+| [`ListAllTasks`](#listing-all-tasks) | Query tasks across all queues in compact form |
+| [`ListTasks<Args>`](#listing-tasks) | Query decoded tasks within a specific queue |
+| [`TaskSink<Args>`](/docs/guides/backend/pushing-tasks) | Enqueue tasks into the backend |
+
+If your backend implements all six, it automatically implements `Expose<Args>` — no additional code is needed. This makes `Expose` a useful bound when writing generic tooling: a single constraint guarantees full observability and push support.
+
+---
+
+## Listing Queues
+
+`ListQueues` lets you discover which queues are currently registered with the backend. Each queue is described by a [`QueueInfo`](#queueinfo) value.
+```rust
+pub trait ListQueues: Backend {
+    fn list_queues(&self) -> impl Future<Output = Result<Vec<QueueInfo>, Self::Error>> + Send;
+}
+```
+
+`QueueInfo` carries everything needed to render a queue overview:
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | `String` | The queue's identifier |
+| `stats` | `Vec<Statistic>` | Current statistics for this queue |
+| `workers` | `Vec<String>` | IDs of workers currently bound to this queue |
+| `activity` | `Vec<usize>` | Task throughput over the last 7 days, one value per day |
+
+The `activity` field is particularly useful for sparkline-style charts in dashboards — it gives a week's worth of historical activity without a separate query.
+
+---
+
+## Listing Workers
+
+`ListWorkers` provides visibility into which workers are alive and what they are processing.
+```rust
+pub trait ListWorkers: Backend {
+    fn list_workers(&self, queue: &str) -> impl Future<Output = Result<Vec<RunningWorker>, Self::Error>> + Send;
+    fn list_all_workers(&self) -> impl Future<Output = Result<Vec<RunningWorker>, Self::Error>> + Send;
+}
+```
+
+Two methods are provided: `list_workers` scopes results to a single named queue, while `list_all_workers` returns every registered worker across all queues. Use `list_all_workers` for a cluster-wide health view and `list_workers` when drilling into a specific queue.
+
+Each [`RunningWorker`] record contains:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `String` | Unique worker identifier |
+| `queue` | `String` | The queue the worker is consuming |
+| `backend` | `String` | The backend type name |
+| `started_at` | `u64` | Unix timestamp when the worker started |
+| `last_heartbeat` | `u64` | Unix timestamp of the most recent heartbeat |
+| `layers` | `String` | Middleware layers active on this worker |
+
+`last_heartbeat` combined with `started_at` tells you whether a worker is healthy. If `last_heartbeat` has not advanced recently, the worker may be stalled or dead — and tasks it held may need to be requeued.
+
+---
+
+## Listing Tasks
+
+Apalis provides two task-listing traits depending on whether you need decoded or compact task representations.
+
+### `ListTasks<Args>` — Tasks in a Specific Queue
+```rust
+pub trait ListTasks<Args>: Backend {
+    fn list_tasks(&self, queue: &str, filter: &Filter) -> impl Future<Output = Result<Vec<Task<Args, Self::Context, Self::IdType>>, Self::Error>> + Send;
+}
+```
+
+Returns fully decoded `Task<Args, …>` values for a named queue, subject to the given [`Filter`](#filtering-tasks). Use this when you need to inspect or display the actual job arguments.
+
+### `ListAllTasks` — Tasks Across All Queues
+```rust
+pub trait ListAllTasks: BackendExt {
+    fn list_all_tasks(&self, filter: &Filter) -> impl Future<Output = Result<Vec<Task<Self::Compact, Self::Context, Self::IdType>>, Self::Error>> + Send;
+}
+```
+
+Returns tasks in their **compact (encoded) form** across every queue. Because this crosses queue boundaries — where `Args` types differ — the compact representation is the only common denominator. This is the right method for a global task browser where decoding isn't required.
+
+---
+
+## Filtering Tasks
+
+Both listing methods accept a `Filter` to page through results and narrow by task status.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `status` | `Option<Status>` | All statuses | Filter to tasks in a specific [`Status`] |
+| `page` | `u32` | `1` | Page number (1-indexed) |
+| `page_size` | `Option<u32>` | `10` | Number of tasks per page |
+
+`Filter` also provides two computed helpers:
+
+- **`offset()`** — calculates the row offset for the current page: `(page - 1) × page_size`
+- **`limit()`** — returns the effective page size, falling back to `10` if unset
+
+These map directly to SQL `LIMIT` / `OFFSET` clauses (or equivalent) in backend implementations.
+
+---
+
+## Metrics
+
+`Metrics` provides aggregate statistics about the backend's health and throughput.
+```rust
+pub trait Metrics: Backend {
+    fn global(&self) -> impl Future<Output = Result<Vec<Statistic>, Self::Error>> + Send;
+    fn fetch_by_queue(&self, queue: &str) -> impl Future<Output = Result<Vec<Statistic>, Self::Error>> + Send;
+}
+```
+
+- **`global()`** — returns system-wide statistics across all queues
+- **`fetch_by_queue(queue)`** — returns statistics scoped to a single named queue
+
+Each [`Statistic`] carries a `title`, a `value` (always a `String` for display flexibility), a `priority` for ordering, and a `stat_type` that describes how the value should be rendered:
+
+| `StatType` | Meaning |
+|---|---|
+| `Number` | An integer count (e.g. pending task count) |
+| `Decimal` | A floating-point value (e.g. average processing time) |
+| `Percentage` | A ratio expressed as a percentage (e.g. success rate) |
+| `Timestamp` | A point in time (e.g. last processed at) |
+
+The `priority` field allows consumers to sort statistics into a consistent display order — lower numbers appear first.
+
+---
+
+## Summary
+
+The `Expose` traits form a layered observability API on top of any Apalis backend:
+```
+Expose<Args>
+  ├── Metrics           →  global and per-queue statistics
+  ├── ListQueues        →  discover available queues
+  ├── ListWorkers       →  inspect running workers
+  ├── ListTasks<Args>   →  decoded tasks within a queue
+  ├── ListAllTasks      →  compact tasks across all queues
+  └── TaskSink<Args>    →  enqueue new tasks
+```
+
+Backends that satisfy all six traits are automatically `Expose`-compatible — making them suitable targets for dashboards, health endpoints, and administrative tooling without any extra boilerplate.
+

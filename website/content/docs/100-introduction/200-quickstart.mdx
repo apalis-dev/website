@@ -1,0 +1,136 @@
+---
+title: Quickstart
+navTitle: Quickstart
+excerpt: Follow this guide to install apalis and configure your development environment for efficient background task processing in Rust.
+bottomNavigation: pagination
+---
+## Installation and Setup
+
+This section will guide you through installing apalis and setting up your development environment to get started with background task processing in Rust.
+
+### Prerequisites
+
+* **Rust:** Download and install Rust from the [official website](https://www.rust-lang.org/learn/get-started).
+* **Database (Optional):** apalis works with various backends like MySQL, Redis, or PostgreSQL. Install and configure the database you prefer for your setup.
+
+
+### Project Initialization
+
+Let's start by generating a new Rust app:
+
+```bash
+cargo new sample-app
+cd sample-app
+```
+
+### Installing apalis
+
+Add apalis to your project by including it in your `Cargo.toml` file. Find the latest version on crates.io and update the version number accordingly.
+
+```toml fileName="Cargo.toml"
+[package]
+name = "example"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+apalis = "1.0.0-rc.3"  # Replace with latest version from crates.io
+serde = "1.0"
+tokio = { version = "1.45.0", features = ["full"] }
+```
+
+If using [`cargo-edit`](https://crates.io/crates/cargo-edit), run the following command:
+
+```bash
+cargo add apalis
+```
+
+### Define the Task Payload
+
+Before we can process background work, we need to define the data structure that represents the payload of the task to be performed.
+It contains the information the worker will use when executing the task logic.
+
+```rust name="struct" mode="inline"
+#[derive(Debug, Clone)]
+struct Email {
+    recipient: String,
+    message: String,
+}
+```
+
+In this example, the `Email` struct represents the message that will be sent to the task queue. It includes the recipient address and the message content.
+
+### Write a Task Handler
+
+Now that we’ve defined the task payload, let’s write the handler function that will process it.
+
+```rust name="task_fn" mode="inline"
+async fn send_email(email: Email) {
+    // Implement your email sending logic here
+    println!("Sending email to {:?}", email);
+}
+```
+This defines an async function `send_email` — [the task handler](/docs/guides/tasks/introduction#async-function) — which receives an `Email` message and performs the work associated with it.
+The function returns a `Result<(), E>` where `E: StdError`.
+
+### Setting Up a Worker
+
+With the task handler in place, we can now configure the [worker](/docs/guides/workers/introduction) that will fetch and execute these tasks.
+
+A worker is responsible for polling the [backend](/docs/guides/backend/introduction) for tasks and executing them using the handler function.
+
+```rust name="worker" mode="inline"
+WorkerBuilder::new("email_worker")
+    .backend(storage)
+    .build(send_email)
+    .run()
+    .await?;
+```
+
+
+This sets up an apalis [`Worker`](https://docs.rs/apalis/latest/apalis/prelude/struct.Worker.html) to manage background tasks. It registers a worker named `email_worker` that processes email task using the `send_email` handler.
+The worker continuously polls the tasks, executing them as they become available. This setup enables background processing without manual task management.
+
+**Note:** In this example, we're using [`MemoryStorage`](https://docs.rs/apalis/latest/apalis/prelude/struct.MemoryStorage.html) as the backend, which is suitable for testing or lightweight workloads.
+
+ 
+### Enqueue a Task
+
+With the worker and backend in place, you can now [enqueue a task](/docs/guides/backend/pushing-tasks) to be processed.
+
+In this example, we’ll push a task to the MemoryStorage-backed queue inside the same binary, right before the worker runs.
+
+```rust name="push" mode="inline"
+let task = Email {
+    recipient: "main@example.com".to_string(),
+    message: "Welcome to our new service".to_string()
+};
+storage.push(task).await?;
+```
+
+If everything is set up correctly, your worker should start running, polling for tasks in the specified backend queue, and executing them using your
+defined handler function. For this example, you should be able to see `"Sending email to user@example.com"` printed out in your terminal.
+
+### Putting it all together
+
+```rust fileName="main.rs" mode="compile"
+use apalis::prelude::*;
+
+// [!code inline:struct]
+
+// [!code inline:task_fn]
+
+#[tokio::main]
+async fn main() -> Result<(), BoxDynError> {
+    let mut storage = MemoryStorage::new();
+
+    // [!code inline:push]
+
+    // [!code inline:worker]
+
+    Ok(())
+}
+```
+
+In summary, apalis processes tasks, each consisting of a payload (like the `Email` struct) and a handler function (like `send_email`).
+The worker polls the backend, retrieves the task, and executes the handler to perform the required work.

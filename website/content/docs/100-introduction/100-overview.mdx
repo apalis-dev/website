@@ -1,0 +1,40 @@
+---
+title: Overview
+navTitle: Overview
+excerpt: Apalis is a simple yet powerful Rust library for building durable, distributed and multithreaded background jobs, tasks and messages processing systems.
+bottomNavigation: pagination
+---
+
+apalis — Scalable background task processing in Rust, made simple and extensible.
+
+## What is apalis?
+
+Apalis is a simple yet powerful Rust library for building durable, distributed and multithreaded background jobs, tasks and messages processing systems.
+
+## Core Features
+
+Some of the main apalis features include:
+
+| **Feature**         | **Description**                                                                                                      |
+|---------------------|----------------------------------------------------------------------------------------------------------------------|
+| **Clean API** | A clean, macro-free API that promotes a predictable and [functional approach to task handling](docs/guides/tasks/introduction#async-function).                        |
+| **Tower Integration** | Tasks are built on [`tower::Service`](https://docs.rs/tower-service/latest/tower_service/trait.Service.html), giving access to the rich ecosystem of [tower middleware](https://docs.rs/tower/latest/tower/#the-tower-ecosystem) and utilities.          |
+| **Stream-Based Sources** | Any type that implements `Stream` can act as a task source — queues, channels, or custom pipelines.              |
+| **Runtime Agnostic** | Works with both `tokio` and `async-std`, offering flexibility across async runtimes.                               |
+| **High Concurrency** | Supports configurable [workers](/docs/guides/workers/introduction), [queues](/docs/guides/backend/introduction), and multi-threading for optimal performance.                                |
+| **Extensibility**   | Modular and flexible, allowing easy addition of new features or connectors tailored to your needs.                   |
+| **Scalability**     | Efficiently handles growing workloads with a distributed processing model.                                         |
+| **Reliability**     | Built-in [retry strategies](/docs/guides/tasks/error-handling#retries) and [robust error handling](/docs/guides/tasks/error-handling#overview) ensure consistent task execution.                                |
+| **Integration Ready** | Out-of-the-box support for [Redis, PostgreSQL, and other common backends](/docs/guides/backend/introduction#implementations).                                           |
+| **Observability**   | Detailed logging, metrics, and [tracing](/docs/integrations/tracing) help you monitor and debug task workflows.                                     |
+
+## How to Use These Docs
+
+The documentation is organized to guide you from the basics to advanced topics, enabling you to build your apalis-powered applications step-by-step. However, feel free to explore topics in any order based on your needs.
+
+For easy navigation, a table of contents is available on the right side of each page, helping you quickly jump to different sections.
+
+## Join our Community
+
+If you have any questions or need assistance with apalis,
+you can connect with our community on [Discord](https://discord.gg/W29BYSXXmp).

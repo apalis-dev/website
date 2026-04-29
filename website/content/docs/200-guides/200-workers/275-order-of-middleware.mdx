@@ -1,0 +1,210 @@
+---
+title: Order of Middleware
+excerpt: Middleware in Apalis wraps the task handler as a Tower service stack. The order layers are declared on `WorkerBuilder` determines which middleware sees a task first — and getting it wrong produces subtle, hard-to-debug behaviour.
+bottomNavigation: pagination
+---
+
+Apalis workers are built on [Tower](https://docs.rs/tower/latest/tower/), which means middleware is composed as a stack of nested services. Understanding how that stack is ordered — and what happens when layers are in the wrong position — is essential for writing workers that behave predictably under failure, load, and observation.
+
+---
+
+## How Tower Layers Wrap Services
+
+Each call to `.layer()` on `WorkerBuilder` wraps the current service with a new outer layer. The last layer declared is the outermost — it sees the task first on the way in, and last on the way out. The handler sits at the very centre.
+```
+WorkerBuilder::new("worker")
+    .layer(A)   // ← outermost: sees task first
+    .layer(B)
+    .layer(C)   // ← innermost: sees task last, just before handler
+    .build(handler)
+```
+
+The execution flow for a task looks like this:
+```
+Task arrives
+     │
+     ▼
+ [ Layer A ]  ← enters first
+     │
+     ▼
+ [ Layer B ]
+     │
+     ▼
+ [ Layer C ]  ← enters last, just before handler
+     │
+     ▼
+ [ handler ]  ← processes the task
+     │
+     ▼
+ [ Layer C ]  ← response bubbles back up
+     │
+     ▼
+ [ Layer B ]
+     │
+     ▼
+ [ Layer A ]  ← exits last
+     │
+     ▼
+Task complete
+```
+
+A layer therefore has two opportunities to act: before passing the task inward, and after receiving the result back. Tracing layers open a span before and close it after. Retry layers inspect the result on the way back and may re-submit the task inward. Timeout layers race the inner service against a deadline.
+
+---
+
+## Recommended Order
+
+For most Apalis workers, apply layers from outermost to innermost in this sequence:
+```rust
+WorkerBuilder::new("tasty-banana")
+    .backend(backend)
+    .layer(TraceLayer::new())           // 1. outermost — traces everything including failures
+    .layer(TimeoutLayer::new(Duration::from_secs(30))) // 2. limits total wall time
+    .layer(RetryLayer::new(RetryPolicy::retries(3)))   // 3. retries before giving up
+    .layer(RateLimitLayer::new(10, Duration::from_secs(1))) // 4. controls throughput
+    .layer(PrometheusLayer::default())  // 5. innermost — measures actual handler time
+    .build(my_handler)
+```
+
+| Position | Layer | Why here |
+|---|---|---|
+| Outermost | `TraceLayer` | Captures the full lifecycle including timeouts and retry attempts |
+| 2nd | `TimeoutLayer` | Bounds the total time budget for all inner work including retries |
+| 3rd | `RetryLayer` | Retries happen within the timeout budget |
+| 4th | `RateLimitLayer` | Throttles how fast tasks reach the handler |
+| Innermost | `PrometheusLayer` | Measures only actual handler execution time, not retry or wait overhead |
+
+---
+
+## What Happens When Layers Are Flipped
+
+The order is not just a stylistic choice — swapping two layers can produce genuinely different runtime behaviour. Here are the most consequential pairs to get right.
+
+### Tracing outside Retry vs. inside Retry
+
+**Correct — Tracing outside:**
+```rust
+.layer(TraceLayer::new())
+.layer(RetryLayer::new(RetryPolicy::retries(3)))
+```
+```
+[ TraceLayer ]
+      │  opens span
+      ▼
+[ RetryLayer ]
+      │  attempt 1 → Err
+      │  attempt 2 → Err
+      │  attempt 3 → Ok
+      ▼
+[ handler ]
+      │
+      ▼
+[ TraceLayer ]
+      │  closes span — captures all three attempts
+```
+
+The trace span covers the full lifecycle: every attempt, every intermediate error, and the final outcome. Your observability backend shows one span per task, with the total duration and eventual result.
+
+**Wrong — Tracing inside:**
+```rust
+.layer(RetryLayer::new(RetryPolicy::retries(3)))
+.layer(TraceLayer::new())
+```
+```
+[ RetryLayer ]
+      │  attempt 1 → opens span → Err → closes span
+      │  attempt 2 → opens span → Err → closes span
+      │  attempt 3 → opens span → Ok  → closes span
+```
+
+Now you get three separate spans for what is logically one task execution. There is no single span capturing the full retry lifecycle. In a tracing backend like Jaeger or Honeycomb, this task appears as three unrelated operations — making it very hard to correlate failures with their eventual resolution.
+
+---
+
+### Timeout outside Retry vs. inside Retry
+
+**Correct — Timeout outside:**
+```rust
+.layer(TimeoutLayer::new(Duration::from_secs(30)))
+.layer(RetryLayer::new(RetryPolicy::retries(3)))
+```
+
+The 30-second budget covers the entire task execution including all retry attempts. If the handler takes 12 seconds per attempt, the third retry is cancelled when the 30-second wall clock expires. The task fails with a timeout error, not an infinite retry loop.
+
+**Wrong — Timeout inside:**
+```rust
+.layer(RetryLayer::new(RetryPolicy::retries(3)))
+.layer(TimeoutLayer::new(Duration::from_secs(30)))
+```
+
+Now each individual attempt gets its own 30-second budget. Three retries × 30 seconds = up to 90 seconds of wall time for a task you intended to limit to 30. A slow handler that consistently takes 29 seconds will retry three times and occupy a worker slot for nearly a minute and a half.
+
+---
+
+### Metrics outside Retry vs. inside Retry
+
+**Correct — Metrics inside:**
+```rust
+.layer(RetryLayer::new(RetryPolicy::retries(3)))
+.layer(PrometheusLayer::default())
+```
+
+Each retry attempt is measured independently. You can see in your metrics that a particular job type required multiple attempts — the `tasks_total` counter with `status="Err"` increments on each failure, and `status="Ok"` increments on the eventual success. This gives you a clear picture of your retry rate.
+
+**Wrong — Metrics outside:**
+```rust
+.layer(PrometheusLayer::default())
+.layer(RetryLayer::new(RetryPolicy::retries(3)))
+```
+
+The metrics layer only sees one event per task — the final outcome after all retries. A task that failed twice and succeeded on the third attempt is recorded simply as `status="Ok"` with a duration that includes all retry overhead. Your error rate in Prometheus will appear artificially low — silent retries are invisible.
+
+---
+
+### Rate Limiting outside Retry vs. inside Retry
+
+**Correct — Rate Limiting outside:**
+```rust
+.layer(RateLimitLayer::new(10, Duration::from_secs(1)))
+.layer(RetryLayer::new(RetryPolicy::retries(3)))
+```
+
+Rate limiting is applied to the initial task dispatch. Retries happen *inside* the rate limiter and do not consume rate limit tokens — they are already in flight. This is the expected behaviour: your backend receives at most 10 new tasks per second, and retries are a detail of the inner service.
+
+**Wrong — Rate Limiting inside:**
+```rust
+.layer(RetryLayer::new(RetryPolicy::retries(3)))
+.layer(RateLimitLayer::new(10, Duration::from_secs(1)))
+```
+
+Each retry attempt must now acquire a rate limit token. Under failure conditions, retries compete with new tasks for the same token budget, potentially starving new work. Worse, if the rate limit is tight and retries are frequent, the retry delay becomes dominated by rate limit wait time rather than your intended back-off policy.
+
+---
+
+## A Note on `enable_tracing()`
+
+`.enable_tracing()` is a convenience method that adds `TraceLayer` as the **outermost** layer automatically — equivalent to calling `.layer(TraceLayer::new())` first. If you also add layers manually, those layers will be **inside** the trace layer:
+```rust
+WorkerBuilder::new("tasty-banana")
+    .backend(backend)
+    .enable_tracing()                          // outermost trace layer
+    .layer(RetryLayer::new(...))               // inside the trace layer
+    .layer(PrometheusLayer::default())         // innermost
+    .build(handler)
+```
+
+This is the correct order for most workers. If you call `.enable_tracing()` after manual layers, those layers will be outside the trace span — which is rarely what you want.
+
+---
+
+## Summary
+
+| Layer pair | Correct order | Effect of flipping |
+|---|---|---|
+| Trace / Retry | Trace outside | Flipped: one span per attempt instead of per task |
+| Timeout / Retry | Timeout outside | Flipped: timeout multiplied by retry count |
+| Metrics / Retry | Metrics inside | Flipped: retries invisible to metrics |
+| Rate Limit / Retry | Rate Limit outside | Flipped: retries consume rate limit tokens |
+
+The mental model to keep in mind: **outer layers see the full story, inner layers see individual attempts**. Place anything that needs a complete view of a task's lifecycle — tracing, timeouts — on the outside. Place anything that measures or controls the raw handler — metrics, rate limiting — on the inside.
+

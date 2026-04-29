@@ -1,0 +1,266 @@
+---
+title: Dependency Injection
+navTitle: Dependency Injection
+excerpt: Apalis provides a powerful dependency injection system through the `FromRequest` trait.
+bottomNavigation: pagination
+---
+
+`apalis` provides a powerful dependency injection system through the `FromRequest` trait, enabling you to extract and inject dependencies directly into your service function parameters. This approach promotes cleaner code organization, better testability, and more intuitive service definitions.
+
+## Understanding FromRequest
+
+The `FromRequest` trait allows you to define how various types should be extracted from incoming task requests. Rather than manually parsing request data within your handlers, you can leverage dependency injection to automatically provide the dependencies your tasks need.
+
+### Built-in Extractors
+
+`apalis` comes with several pre-implemented extractors that you can use immediately:
+
+- **`Attempt`**: Provides information about the current task execution attempt
+- **`WorkerContext`**: Gives access to worker-specific context and metadata
+- **`Data<T>`**: Extracts shared application state or configuration
+- **`TaskId`**: Provides the unique identifier for the current task
+
+### Basic Usage Example
+
+```rust {3} name="simple" mode="inline"
+async fn simple(
+    email: Email,
+    worker: WorkerContext,
+) -> Result<(), EmailError> {
+    worker.stop().unwrap();
+    Ok(())
+}
+```
+The example above injects the Worker's context allowing you to control the Worker inside the task fn
+
+## Creating Custom Extractors
+
+The real power of dependency injection comes from implementing `FromRequest` for your own types. This allows you to encapsulate complex data fetching or preparation logic outside of your main task handlers.
+
+### Example: User Extraction
+
+Consider a task that needs user information. Instead of fetching the user inside the handler, you can create a custom extractor:
+
+```rust {31} name="custom_extractor" mode="inline"
+struct User {
+    id: String,
+    email: String,
+    name: String,
+}
+
+impl User {
+    async fn find_by_id(id: String) -> Result<Self, Infallible> {
+        // Database lookup logic
+        Ok(User {
+            id,
+            email: "user@example.com".to_string(),
+            name: "John Doe".to_string(),
+        })
+    }
+}
+
+// Implement FromRequest for User
+impl<Ctx: Sync, Id: Sync> FromRequest<Task<Email, Ctx, Id>> for User {
+    type Error = Infallible;
+    
+    async fn from_request(req: &Task<Email, Ctx, Id>) -> Result<Self, Self::Error> {
+        let user_id = req.args.to.clone();
+        User::find_by_id(user_id).await
+    }
+}
+
+// Clean handler with injected User
+async fn send_email(
+    _: Email,
+    user: User,  // Automatically injected via FromRequest
+) -> Result<(), EmailError> {
+    println!("Sending email to {} ({})", user.name, user.email);
+    // Email sending logic here
+    Ok(())
+}
+```
+
+### Before and After Comparison
+
+**Without dependency injection:**
+```rust
+async fn send_email_by_id(email: Email) -> Result<(), BoxDynError> {
+    let user_id = email.to;
+    // Email logic mixed with data fetching
+    let user = User::find_by_id(user_id).await?;  // Mixed concerns
+
+    send_actual_email(&user.email, &email.message).await?;
+    Ok(())
+}
+```
+
+**With dependency injection:**
+```rust
+async fn send_email(email: Email, user: User) -> Result<(), BoxDynError> {
+    // Clean, focused logic
+    send_actual_email(&user.email, &email.message).await?;
+    Ok(())
+}
+```
+
+## Advanced Patterns
+
+### Multiple Dependencies
+
+You can inject multiple custom dependencies into a single handler:
+
+```rust {18,19,20} name="multiple_extractor" mode="inline"
+struct Organization<S> {
+    id: String,
+    name: String,
+    settings: S,
+}
+
+impl<Ctx: Sync, Id: Sync, S: Sync> FromRequest<Task<Email, Ctx, Id>> for Organization<S> {
+    type Error = Infallible;
+    
+    async fn from_request(req: &Task<Email, Ctx, Id>) -> Result<Self, Self::Error> {
+        // Extract organization from user context
+        todo!()
+    }
+}
+
+async fn send_organization_email<S>(
+    email_task: Email,
+    user: User,           // Injected dependency
+    org: Organization<S>,    // Another injected dependency
+    config: Data<AppConfig>,  // Built-in extractor
+) -> Result<(), EmailError> {
+    // Handler focuses purely on business logic
+    Ok(())
+}
+```
+
+### Conditional Extraction
+
+You can implement conditional logic within extractors:
+
+```rust
+struct AuthenticatedUser(User);
+
+impl<Ctx: Sync, Id: Sync> FromRequest<Task<Email, Ctx, Id>> for AuthenticatedUser {
+    type Error = AuthError;
+    
+    async fn from_request(req: &Task<Email, Ctx, Id>) -> Result<Self, Self::Error> {
+        let user = User::find_by_id(req.args.user_id.clone()).await
+            .map_err(|_| AuthError::UserNotFound)?;
+            
+        if user.is_active && user.has_permission(&req.args.required_permission) {
+            Ok(AuthenticatedUser(user))
+        } else {
+            Err(AuthError::Unauthorized)
+        }
+    }
+}
+```
+
+## Error Handling
+
+Extractor errors are propagated automatically. If any `FromRequest` implementation returns an error, the task will fail with that error. This allows for early validation and clear error reporting:
+
+```rust
+#[derive(Debug)]
+enum UserExtractionError {
+    NotFound,
+    DatabaseError(String),
+    ValidationFailed,
+}
+
+impl<Ctx: Sync, Id: Sync> FromRequest<Task<Email, Ctx, Id>> for ValidatedUser {
+    type Error = UserExtractionError;
+    
+    async fn from_request(req: &Task<Email, Ctx, Id>) -> Result<Self, Self::Error> {
+        let user = User::find_by_id(req.args.user_id.clone()).await
+            .map_err(|e| UserExtractionError::DatabaseError(e.to_string()))?;
+            
+        if user.email.is_empty() {
+            return Err(UserExtractionError::ValidationFailed);
+        }
+        
+        Ok(ValidatedUser(user))
+    }
+}
+```
+
+## Best Practices
+
+### Separation of Concerns
+Use `FromRequest` to separate data fetching from business logic. Your handlers should focus on the core task processing rather than data preparation.
+
+### Reusability
+Design extractors to be reusable across multiple handlers. A well-designed `User` extractor can be used in many different task types.
+
+### Error Handling
+Implement meaningful error types in your extractors to provide clear debugging information when tasks fail.
+
+### Performance Considerations
+Be mindful of expensive operations in extractors, especially database calls. Consider caching strategies or lazy loading when appropriate.
+
+### Testing
+Extractors make testing easier by allowing you to mock dependencies at the injection level rather than within handlers.
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    // Mock implementation for testing
+    impl<Ctx: Sync, Id: Sync> FromRequest<Task<Email, Ctx, Id>> for User {
+        type Error = DatabaseError;
+        
+        async fn from_request(_req: &Task<Email, Ctx, Id>) -> Result<Self, Self::Error> {
+            Ok(User {
+                id: "test-user".to_string(),
+                email: "test@example.com".to_string(),
+                name: "Test User".to_string(),
+            })
+        }
+    }
+}
+```
+
+## Putting it all together
+
+```rust fileName="main.rs" mode="compile"
+use apalis::prelude::*;
+use examples::*;
+use std::convert::Infallible;
+
+// [!code inline:simple]
+
+// [!code inline:custom_extractor]
+
+// [!code inline:multiple_extractor]
+
+#[tokio::main]
+async fn main() -> Result<(), BoxDynError> {
+    let mut storage = MemoryStorage::new();
+    let simple = WorkerBuilder::new("simple_worker")
+        .backend(storage)
+        .build(simple)
+        .run();
+    
+    let mut storage = MemoryStorage::new();
+    let custom_extractor = WorkerBuilder::new("custom_worker")
+        .backend(storage)
+        .build(send_email)
+        .run();
+    
+    let mut storage = MemoryStorage::new();
+    let multiple_extractor = WorkerBuilder::new("mul_worker")
+        .backend(storage)
+        .build(send_organization_email::<AppConfig>)
+        .run();
+
+    Ok(())
+}
+```
+
+## Conclusion
+
+Dependency injection through `FromRequest` transforms how you write task handlers in Apalis. By extracting dependencies automatically, you can write cleaner, more focused handlers that are easier to test and maintain. The system's flexibility allows you to implement complex extraction logic while keeping your core business logic simple and readable.
