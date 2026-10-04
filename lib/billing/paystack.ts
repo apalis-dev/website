@@ -24,6 +24,22 @@ export type VerifiedTransaction = {
   currency: string;
   paid_at: string | null;
   metadata?: { userId?: string; interval?: BillingInterval };
+  plan?: string | PaystackPlan;
+  plan_object?: PaystackPlan | null;
+  subscription?: PaystackSubscription | null;
+};
+
+export type PaystackPlan = {
+  plan_code: string;
+  amount: number;
+  currency: string;
+  interval: string;
+};
+
+export type PaystackSubscription = {
+  subscription_code?: string;
+  email_token?: string;
+  status?: string;
 };
 
 function requiredEnvironment(name: string) {
@@ -103,6 +119,44 @@ export async function verifyTransaction(reference: string) {
   return paystackFetch<VerifiedTransaction>(
     `/transaction/verify/${encodeURIComponent(reference)}`
   );
+}
+
+export async function getProPlan(interval: BillingInterval) {
+  return paystackFetch<PaystackPlan>(
+    `/plan/${encodeURIComponent(getProPlanCode(interval))}`
+  );
+}
+
+export async function validateProPayment(
+  transaction: VerifiedTransaction,
+  interval: BillingInterval
+) {
+  const plan = await getProPlan(interval);
+  const transactionPlan =
+    typeof transaction.plan === "string"
+      ? transaction.plan
+      : transaction.plan?.plan_code ?? transaction.plan_object?.plan_code;
+
+  return (
+    transaction.status === "success" &&
+    transaction.currency === "KES" &&
+    plan.currency === "KES" &&
+    transactionPlan === plan.plan_code &&
+    transaction.amount === plan.amount
+  );
+}
+
+export async function disableSubscription({
+  subscriptionCode,
+  emailToken,
+}: {
+  subscriptionCode: string;
+  emailToken: string;
+}) {
+  return paystackFetch<{ status: string }>("/subscription/disable", {
+    method: "POST",
+    body: JSON.stringify({ code: subscriptionCode, token: emailToken }),
+  });
 }
 
 export function isValidPaystackSignature(

@@ -31,7 +31,11 @@ export default async function Page() {
   const { subscription, transactions } = session?.user
     ? getBillingSummary(session.user.id)
     : { subscription: undefined, transactions: [] };
-  const activeSubscription = subscription?.status === "active" ? subscription : undefined;
+  const activeSubscription =
+    subscription?.status === "active" || subscription?.status === "non-renewing"
+      ? subscription
+      : undefined;
+  const isNonRenewing = activeSubscription?.status === "non-renewing";
   const amount = transactions[0]?.amount;
   const interval = activeSubscription?.interval === "annually" ? "year" : "month";
   const invoiceCount = transactions.length;
@@ -55,7 +59,11 @@ export default async function Page() {
           </CardHeader>
           <CardContent>
             <Badge variant={activeSubscription ? "success" : "secondary"}>
-              {activeSubscription ? "Active" : "No active plan"}
+              {activeSubscription
+                ? isNonRenewing
+                  ? "Will not renew"
+                  : "Active"
+                : "No active plan"}
             </Badge>
           </CardContent>
         </Card>
@@ -103,7 +111,11 @@ export default async function Page() {
               </p>
             </div>
             <Badge variant={activeSubscription ? "success" : "secondary"}>
-              {activeSubscription ? "Active" : "Inactive"}
+              {activeSubscription
+                ? isNonRenewing
+                  ? "Will not renew"
+                  : "Active"
+                : "Inactive"}
             </Badge>
           </div>
 
@@ -123,7 +135,11 @@ export default async function Page() {
             <div>
               <p className="font-medium">Next invoice</p>
               <p className="text-sm text-muted-foreground">
-                {activeSubscription ? "Managed through Paystack" : "Start a Pro subscription"}
+                {activeSubscription
+                  ? isNonRenewing
+                    ? "This subscription will not renew."
+                    : "Managed through Paystack"
+                  : "Start a Pro subscription"}
               </p>
             </div>
             <ManageSubscriptionButton />
@@ -232,7 +248,7 @@ export default async function Page() {
                 This action can be reversed before your renewal date.
               </p>
             </div>
-            <CancelSubscriptionButton />
+            {activeSubscription?.status === "active" ? <CancelSubscriptionButton /> : null}
           </CardContent>
         </Card>
       </section>

@@ -8,6 +8,8 @@ export type StoredSubscription = {
   currency: string;
   interval: "monthly" | "annually";
   latestReference: string;
+  paystackSubscriptionCode: string | null;
+  paystackEmailToken: string | null;
 };
 
 export type StoredTransaction = {
@@ -35,9 +37,24 @@ database.exec(`
     currency TEXT NOT NULL,
     interval TEXT NOT NULL,
     latest_reference TEXT NOT NULL,
+    paystack_subscription_code TEXT,
+    paystack_email_token TEXT,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 `);
+
+function ensureSubscriptionColumn(name: string) {
+  const columns = database
+    .prepare("PRAGMA table_info(billing_subscriptions)")
+    .all() as { name: string }[];
+
+  if (!columns.some((column) => column.name === name)) {
+    database.exec(`ALTER TABLE billing_subscriptions ADD COLUMN ${name} TEXT`);
+  }
+}
+
+ensureSubscriptionColumn("paystack_subscription_code");
+ensureSubscriptionColumn("paystack_email_token");
 
 export function recordSuccessfulPayment({
   reference,
@@ -46,6 +63,8 @@ export function recordSuccessfulPayment({
   currency,
   paidAt,
   interval,
+  subscriptionCode,
+  emailToken,
 }: {
   reference: string;
   userId: string;
@@ -53,6 +72,8 @@ export function recordSuccessfulPayment({
   currency: string;
   paidAt: string | null;
   interval: "monthly" | "annually";
+  subscriptionCode?: string;
+  emailToken?: string;
 }) {
   if (currency !== "KES") {
     throw new Error("Only KES subscriptions are supported.");
@@ -74,20 +95,36 @@ export function recordSuccessfulPayment({
     database
       .prepare(
         `INSERT INTO billing_subscriptions
-          (user_id, plan, status, currency, interval, latest_reference, updated_at)
-         VALUES (?, 'Pro', 'active', ?, ?, ?, CURRENT_TIMESTAMP)
+          (user_id, plan, status, currency, interval, latest_reference, paystack_subscription_code, paystack_email_token, updated_at)
+         VALUES (?, 'Pro', 'active', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
          ON CONFLICT(user_id) DO UPDATE SET
            plan = excluded.plan,
            status = excluded.status,
            currency = excluded.currency,
            interval = excluded.interval,
            latest_reference = excluded.latest_reference,
+           paystack_subscription_code = COALESCE(excluded.paystack_subscription_code, billing_subscriptions.paystack_subscription_code),
+           paystack_email_token = COALESCE(excluded.paystack_email_token, billing_subscriptions.paystack_email_token),
            updated_at = CURRENT_TIMESTAMP`
       )
-      .run(userId, currency, interval, reference);
+      .run(userId, currency, interval, reference, subscriptionCode ?? null, emailToken ?? null);
   });
 
   save();
+}
+
+export function findSubscriptionByPaystackCode(subscriptionCode: string) {
+  return database
+    .prepare("SELECT user_id as userId FROM billing_subscriptions WHERE paystack_subscription_code = ?")
+    .get(subscriptionCode) as { userId: string } | undefined;
+}
+
+export function updateSubscriptionStatus(userId: string, status: string) {
+  database
+    .prepare(
+      "UPDATE billing_subscriptions SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?"
+    )
+    .run(status, userId);
 }
 
 export function getBillingSummary(userId: string) {
@@ -98,7 +135,9 @@ export function getBillingSummary(userId: string) {
         status,
         currency,
         interval,
-        latest_reference as latestReference
+        latest_reference as latestReference,
+        paystack_subscription_code as paystackSubscriptionCode,
+        paystack_email_token as paystackEmailToken
        FROM billing_subscriptions
        WHERE user_id = ?`
     )

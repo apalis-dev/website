@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 
-import { isValidPaystackSignature } from "@/lib/billing/paystack";
-import { recordSuccessfulPayment } from "@/lib/billing/store";
+import {
+  isValidPaystackSignature,
+  validateProPayment,
+  verifyTransaction,
+} from "@/lib/billing/paystack";
+import {
+  findSubscriptionByPaystackCode,
+  recordSuccessfulPayment,
+  updateSubscriptionStatus,
+} from "@/lib/billing/store";
 
 export const runtime = "nodejs";
 
@@ -21,30 +29,53 @@ export async function POST(request: Request) {
       event?: string;
       data?: {
         reference?: string;
-        status?: string;
-        amount?: number;
-        currency?: string;
-        paid_at?: string | null;
         metadata?: { userId?: string; interval?: "monthly" | "annually" };
+        subscription?: { subscription_code?: string };
+        subscription_code?: string;
       };
     };
 
-    if (
-      event.event === "charge.success" &&
-      event.data?.status === "success" &&
-      event.data.reference &&
-      event.data.metadata?.userId &&
-      event.data.currency === "KES" &&
-      typeof event.data.amount === "number"
-    ) {
-      recordSuccessfulPayment({
-        reference: event.data.reference,
-        userId: event.data.metadata.userId,
-        amount: event.data.amount,
-        currency: event.data.currency,
-        paidAt: event.data.paid_at ?? null,
-        interval: event.data.metadata.interval === "annually" ? "annually" : "monthly",
-      });
+    const subscriptionCode =
+      event.data?.subscription?.subscription_code ?? event.data?.subscription_code;
+
+    if (event.event === "charge.success" && event.data?.reference) {
+      // Never grant access from the webhook payload itself. Fetch Paystack's
+      // canonical transaction and match its configured plan and amount.
+      const transaction = await verifyTransaction(event.data.reference);
+      const interval =
+        transaction.metadata?.interval === "annually" ? "annually" : "monthly";
+      const userId =
+        transaction.metadata?.userId ??
+        (subscriptionCode
+          ? findSubscriptionByPaystackCode(subscriptionCode)?.userId
+          : undefined);
+
+      if (userId && (await validateProPayment(transaction, interval))) {
+        recordSuccessfulPayment({
+          reference: transaction.reference,
+          userId,
+          amount: transaction.amount,
+          currency: transaction.currency,
+          paidAt: transaction.paid_at,
+          interval,
+          subscriptionCode: transaction.subscription?.subscription_code ?? subscriptionCode,
+          emailToken: transaction.subscription?.email_token,
+        });
+      }
+    }
+
+    if (subscriptionCode) {
+      const subscription = findSubscriptionByPaystackCode(subscriptionCode);
+
+      if (subscription) {
+        if (event.event === "subscription.not_renew") {
+          updateSubscriptionStatus(subscription.userId, "non-renewing");
+        } else if (event.event === "subscription.disable") {
+          updateSubscriptionStatus(subscription.userId, "cancelled");
+        } else if (event.event === "invoice.payment_failed") {
+          updateSubscriptionStatus(subscription.userId, "payment-failed");
+        }
+      }
     }
 
     return NextResponse.json({ received: true });

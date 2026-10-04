@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
-import { verifyTransaction } from "@/lib/billing/paystack";
+import { validateProPayment, verifyTransaction } from "@/lib/billing/paystack";
 import { recordSuccessfulPayment } from "@/lib/billing/store";
 import { Button } from "@/components/ui/button";
 
@@ -24,11 +24,9 @@ export default async function BillingCallbackPage({
     try {
       const transaction = await verifyTransaction(reference);
       const belongsToUser = transaction.metadata?.userId === session.user.id;
+      const interval = transaction.metadata?.interval === "annually" ? "annually" : "monthly";
 
-      isPaid =
-        transaction.status === "success" &&
-        transaction.currency === "KES" &&
-        belongsToUser;
+      isPaid = belongsToUser && (await validateProPayment(transaction, interval));
       if (isPaid) {
         recordSuccessfulPayment({
           reference: transaction.reference,
@@ -36,7 +34,9 @@ export default async function BillingCallbackPage({
           amount: transaction.amount,
           currency: transaction.currency,
           paidAt: transaction.paid_at,
-          interval: transaction.metadata?.interval === "annually" ? "annually" : "monthly",
+          interval,
+          subscriptionCode: transaction.subscription?.subscription_code,
+          emailToken: transaction.subscription?.email_token,
         });
       }
       message = isPaid
