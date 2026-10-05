@@ -31,7 +31,7 @@ export const Pre: FC<
 
     return (
       <div className={`relative mt-7 ${className}`}>
-        <div className="group w-full bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-500 dark:to-zinc-800 p-px rounded-sm overflow-hidden [.code-output_&]:rounded-none-b-none">
+        <div className="group w-full bg-linear-to-br from-zinc-100 to-zinc-200 dark:from-zinc-500 dark:to-zinc-800 p-px rounded-sm overflow-hidden [.code-output_&]:rounded-none-b-none">
           <div className="bg-zinc-50 dark:bg-zinc-950 rounded-sm [.code-output_&]:rounded-none-b-none">
             <div className="flex justify-start group-hover:justify-between items-center pr-2 border-b border-zinc-200 dark:border-zinc-800">
               <div className="flex">
@@ -66,9 +66,9 @@ export const Pre: FC<
               </div>
               <button
                 onClick={copy}
-                className="hidden group-hover:block h-6 rounded-sm p-px shadow dark:shadow-lg bg-gradient-to-br from-zinc-200 to-zinc-300 dark:from-zinc-300 dark:to-zinc-500"
+                className="hidden group-hover:block h-6 rounded-sm p-px shadow dark:shadow-lg bg-linear-to-br from-zinc-200 to-zinc-300 dark:from-zinc-300 dark:to-zinc-500"
               >
-                <div className="h-full flex items-center gap-1 px-2 font-medium rounded-sm bg-gradient-to-br from-zinc-100 dark:from-zinc-700 to-zinc-200 dark:to-zinc-900 text-black dark:text-white text-sm">
+                <div className="h-full flex items-center gap-1 px-2 font-medium rounded-sm bg-linear-to-br from-zinc-100 dark:from-zinc-700 to-zinc-200 dark:to-zinc-900 text-black dark:text-white text-sm">
                   <Icon name={copied ? "check" : "clipboard"} className="h-3" />
                   <span>{copied ? "Copied" : "Copy"}</span>
                 </div>

@@ -33,7 +33,7 @@ export const Hero = () => {
 
   return (
     <section className="relative z-10 my-4">
-      <div className="w-full max-w-screen-2xl mx-auto px-4 sm:px-8 lg:px-16 pt-16">
+      <div className="w-full max-w-(--breakpoint-2xl) mx-auto px-4 sm:px-8 lg:px-16 pt-16">
         <section className="flex flex-col gap-8 lg:gap-11 items-center text-center">
           <h1 className="font-display text-4xl sm:text-4xl lg:text-5xl mb-4 mx-auto">
             <span className="block relative">
@@ -46,13 +46,13 @@ export const Hero = () => {
                   initial={{ y: "-100%", opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   exit={{ opacity: 0, transition: { duration: 0.2 } }}
-                  className={`not-sr-only absolute top-0 -bottom-4 block text-transparent bg-clip-text bg-gradient-to-br ${headlines[currentIndex].gradient}`}
+                  className={`not-sr-only absolute top-0 -bottom-4 block text-transparent bg-clip-text bg-linear-to-br ${headlines[currentIndex].gradient}`}
                 >
                   {headlines[currentIndex].text}
                 </motion.span>
               </AnimatePresence>
             </span>
-            <span className="text-transparent bg-clip-text bg-gradient-to-br from-white to-zinc-300">
+            <span className="text-transparent bg-clip-text bg-linear-to-br from-white to-zinc-300">
               with confidence
             </span>
           </h1>

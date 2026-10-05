@@ -80,7 +80,7 @@ export function PricingSection() {
                     </p>
                 </div>
                 <div className="pt-4">
-                    <div className="p-0.5 dark:bg-muted rounded-md outline outline-1 outline-[#0307120a] outline-offset-[-1px] flex justify-start items-center gap-1 md:mt-0">
+                    <div className="p-0.5 dark:bg-muted rounded-md outline outline-1 outline-[#0307120a] -outline-offset-1 flex justify-start items-center gap-1 md:mt-0">
                         <button
                             onClick={() => setIsAnnual(true)}
                             className={`pl-2 pr-1 py-1 flex justify-start items-start gap-2 rounded-md ${isAnnual ? "bg-accent shadow-[0px_1px_1px_-0.5px_rgba(0,0,0,0.08)]" : ""}`}
@@ -104,11 +104,11 @@ export function PricingSection() {
                     </div>
                 </div>
             </div>
-            <div className="w-full max-w-screen-2xl mx-auto self-stretch px-5 flex flex-col md:flex-row justify-start items-start gap-4 md:gap-6 mt-6">
+            <div className="w-full max-w-(--breakpoint-2xl) mx-auto self-stretch px-5 flex flex-col md:flex-row justify-start items-start gap-4 md:gap-6 mt-6">
                 {pricingPlans.map((plan) => (
                     <div
                         key={plan.name}
-                        className={`flex-1 p-4 overflow-hidden rounded-md flex flex-col justify-start items-center self-stretch gap-6 ${plan.popular ? "bg-primary shadow-[0px_4px_8px_-2px_rgba(0,0,0,0.10)]" : "bg-gradient-to-b from-gray-50/5 to-gray-50/0"}`}
+                        className={`flex-1 p-4 overflow-hidden rounded-md flex flex-col justify-start items-center self-stretch gap-6 ${plan.popular ? "bg-primary shadow-[0px_4px_8px_-2px_rgba(0,0,0,0.10)]" : "bg-linear-to-b from-gray-50/5 to-gray-50/0"}`}
                         style={plan.popular ? {} : { outline: "1px solid hsl(var(--border))", outlineOffset: "-1px" }}
                     >
                         <div className="self-stretch flex flex-col justify-start items-start gap-6">
@@ -118,8 +118,8 @@ export function PricingSection() {
                                 >
                                     {plan.name}
                                     {plan.popular && (
-                                        <div className="ml-2 px-2 overflow-hidden rounded-full justify-center items-center gap-2.5 inline-flex mt-0 py-0.5 bg-gradient-to-b from-primary-light/50 to-primary-light bg-white">
-                                            <div className="text-center text-primary-foreground text-xs font-normal leading-tight break-words">
+                                        <div className="ml-2 px-2 overflow-hidden rounded-full justify-center items-center gap-2.5 inline-flex mt-0 py-0.5 bg-linear-to-b from-primary-light/50 to-primary-light bg-white">
+                                            <div className="text-center text-primary-foreground text-xs font-normal leading-tight wrap-break-word">
                                                 Popular
                                             </div>
                                         </div>

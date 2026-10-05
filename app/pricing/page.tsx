@@ -177,7 +177,7 @@ export default function Pro() {
 
     {/* CTA Section */}
     <section className="w-full px-5 py-12 md:py-20 flex flex-col justify-center items-center">
-      <div className="max-w-2xl w-full flex flex-col justify-center items-center gap-8 p-8 md:p-12 rounded-lg bg-gradient-to-br from-accent/10 to-accent/5 border border-accent/20">
+      <div className="max-w-2xl w-full flex flex-col justify-center items-center gap-8 p-8 md:p-12 rounded-lg bg-linear-to-br from-accent/10 to-accent/5 border border-accent/20">
         <div className="flex flex-col justify-center items-center gap-3">
           <h2 className="text-center dark:text-foreground text-3xl md:text-4xl font-semibold">
             Ready to get started?

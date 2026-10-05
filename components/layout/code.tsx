@@ -27,7 +27,7 @@ export const Code: FC<{
   }
 
   return (
-    <div className="w-full bg-gradient-to-br from-zinc-500 to-zinc-800 p-px rounded-xl overflow-hidden h-full">
+    <div className="w-full bg-linear-to-br from-zinc-500 to-zinc-800 p-px rounded-xl overflow-hidden h-full">
       <Tabs.Root
         defaultValue={tabs[0].name}
         className="bg-zinc-950 rounded-[11px] overflow-hidden h-full flex flex-col justify-between"
@@ -112,9 +112,9 @@ export const Code: FC<{
           <div className="relative border-t border-zinc-800 py-8">
             <button
               onClick={() => runSnippet()}
-              className="absolute -top-5 left-12 inline-flex h-10 rounded-xl p-px bg-gradient-to-br from-zinc-300 to-zinc-500 shadow-lg"
+              className="absolute -top-5 left-12 inline-flex h-10 rounded-xl p-px bg-linear-to-br from-zinc-300 to-zinc-500 shadow-lg"
             >
-              <div className="flex h-full items-center gap-2 px-6 font-medium rounded-[11px] bg-gradient-to-br from-zinc-700 to-zinc-900 text-white">
+              <div className="flex h-full items-center gap-2 px-6 font-medium rounded-[11px] bg-linear-to-br from-zinc-700 to-zinc-900 text-white">
                 <Icon name="play" className="h-3.5" />
                 <span>{terminal.run}</span>
               </div>

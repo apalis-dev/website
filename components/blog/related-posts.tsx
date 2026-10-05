@@ -25,7 +25,7 @@ export const RelatedPosts: FC<{ slugs: string[] }> = ({ slugs }) => {
               <Link
                 href={post.urlPath}
                 key={index}
-                className="bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 rounded-sm p-6 transition-transform duration-200 hover:scale-[1.01]"
+                className="bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 rounded-sm p-6 transition-transform duration-200 hover:scale-[1.01]"
               >
                 <h3 className="font-display text-xl text-black dark:text-white mb-4">{post.title}</h3>
                 <p className="text-sm">{format(new Date(post.date), "LLL. do, yyyy")}</p>

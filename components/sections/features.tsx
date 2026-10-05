@@ -16,7 +16,7 @@ const FeatureCard = ({ title, description, Component, href }) => (
                 WebkitBackdropFilter: "blur(4px)",
             }}
         />
-        <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-md" />
+        <div className="absolute inset-0 bg-linear-to-br from-white/5 to-transparent rounded-md" />
 
         <div className="self-stretch p-6 flex flex-col justify-start items-start gap-2 relative z-10">
             <div className="self-stretch flex flex-col justify-start items-start gap-1.5">
@@ -73,7 +73,7 @@ export function Features() {
     ]
 
     return (
-        <section className="w-full max-w-screen-2xl mx-auto px-5 flex flex-col justify-center items-center overflow-visible bg-transparent">
+        <section className="w-full max-w-(--breakpoint-2xl) mx-auto px-5 flex flex-col justify-center items-center overflow-visible bg-transparent">
             <div className="w-full py-8 md:py-16 relative flex flex-col justify-start items-start gap-6">
                 <div className="w-[547px] h-[938px] absolute top-[614px] left-[80px] origin-top-left rotate-[-33.39deg] bg-primary/10 blur-[130px] z-0" />
                 <div className="self-stretch py-8 md:py-14 flex flex-col justify-center items-center gap-2 z-10">

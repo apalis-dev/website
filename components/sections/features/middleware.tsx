@@ -122,7 +122,7 @@ const Middleware: React.FC<MiddlewareProps> = ({ className = "" }) => {
                 }}
               >
                 <div
-                  className="border border-1 rounded-sm p-1"
+                  className="border border rounded-sm p-1"
                   style={{
                     width: "24px",
                     height: "24px",

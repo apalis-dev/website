@@ -10,7 +10,7 @@ export const Ergonomics = () => {
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   return (
     <section className="relative my-4">
-      <div className="w-full max-w-screen-2xl mx-auto px-4 sm:px-8 lg:px-16">
+      <div className="w-full max-w-(--breakpoint-2xl) mx-auto px-4 sm:px-8 lg:px-16">
         <h2 className="font-display mb-6 text-2xl sm:text-3xl lg:text-4xl text-white text-center">
           {content.heading}
         </h2>
@@ -40,7 +40,7 @@ export const Ergonomics = () => {
                           <div className="absolute -left-2 w-9 h-9 rounded-sm border border-white/10" />
                         </>
                       )}
-                      <div className="relative bg-gradient-to-br from-zinc-100 to-zinc-500 h-5 w-5 rounded-sm p-px">
+                      <div className="relative bg-linear-to-br from-zinc-100 to-zinc-500 h-5 w-5 rounded-sm p-px">
                         <div
                           className={`rounded-sm-[5px] h-full w-full flex items-center justify-center ${currentIndex >= index ? "bg-white" : "bg-black"
                             }`}

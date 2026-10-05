@@ -52,11 +52,11 @@ const FAQItem = ({ question, answer, isOpen, onToggle }: FAQItemProps) => {
   }
   return (
     <div
-      className={`w-full bg-[rgba(231,236,235,0.08)] shadow-[0px_2px_4px_rgba(0,0,0,0.16)] overflow-hidden rounded-[10px] outline outline-1 outline-border outline-offset-[-1px] transition-all duration-500 ease-out cursor-pointer`}
+      className={`w-full bg-[rgba(231,236,235,0.08)] shadow-[0px_2px_4px_rgba(0,0,0,0.16)] overflow-hidden rounded-[10px] outline outline-1 outline-border -outline-offset-1 transition-all duration-500 ease-out cursor-pointer`}
       onClick={handleClick}
     >
       <div className="w-full px-5 py-[18px] pr-4 flex justify-between items-center gap-5 text-left transition-all duration-300 ease-out">
-        <div className="flex-1 text-foreground text-base font-medium leading-6 break-words">{question}</div>
+        <div className="flex-1 text-foreground text-base font-medium leading-6 wrap-break-word">{question}</div>
         <div className="flex justify-center items-center">
           <Icon
             name="chevron-down"
@@ -74,7 +74,7 @@ const FAQItem = ({ question, answer, isOpen, onToggle }: FAQItemProps) => {
         <div
           className={`px-5 transition-all duration-500 ease-out ${isOpen ? "pb-[18px] pt-2 translate-y-0" : "pb-0 pt-0 -translate-y-2"}`}
         >
-          <div className="text-foreground/80 text-sm font-normal leading-6 break-words">{answer}</div>
+          <div className="text-foreground/80 text-sm font-normal leading-6 wrap-break-word">{answer}</div>
         </div>
       </div>
     </div>
@@ -97,10 +97,10 @@ export function FAQ() {
       <div className="w-[300px] h-[500px] absolute top-[150px] left-1/2 -translate-x-1/2 origin-top-left rotate-[-33.39deg] bg-primary/10 blur-[100px] z-0" />
       <div className="self-stretch pt-8 pb-8 md:pt-14 md:pb-14 flex flex-col justify-center items-center gap-2 relative z-10">
         <div className="flex flex-col justify-start items-center gap-4">
-          <h2 className="w-full max-w-[435px] text-center text-foreground text-4xl font-semibold leading-10 break-words">
+          <h2 className="w-full max-w-[435px] text-center text-foreground text-4xl font-semibold leading-10 wrap-break-word">
             Frequently Asked Questions
           </h2>
-          <p className="self-stretch text-center text-muted-foreground text-sm font-medium leading-[18.20px] break-words">
+          <p className="self-stretch text-center text-muted-foreground text-sm font-medium leading-[18.20px] wrap-break-word">
             Everything you need to know about Pointer and how it can transform your development workflow
           </p>
         </div>

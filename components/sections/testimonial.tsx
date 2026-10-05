@@ -66,7 +66,7 @@ const TestimonialCard = ({ quote, name, company, avatar, type }) => {
       />
     )
   } else {
-    cardClasses += " bg-card outline outline-1 outline-border outline-offset-[-1px]"
+    cardClasses += " bg-card outline outline-1 outline-border -outline-offset-1"
     quoteClasses += " text-foreground/80 text-[17px] font-normal leading-6"
     nameClasses += " text-foreground text-sm font-normal leading-[22px]"
     companyClasses += " text-muted-foreground text-sm font-normal leading-[22px]"
@@ -76,7 +76,7 @@ const TestimonialCard = ({ quote, name, company, avatar, type }) => {
   return (
     <div className={`${cardClasses} ${cardWidth} ${cardHeight}`}>
       {backgroundElements}
-      <div className={`relative z-10 font-normal break-words ${quoteClasses}`}>{quote}</div>
+      <div className={`relative z-10 font-normal wrap-break-word ${quoteClasses}`}>{quote}</div>
       <div className="relative z-10 flex justify-start items-center gap-3">
         <Image
           src={avatar || "/placeholder.svg"}

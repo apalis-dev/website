@@ -52,7 +52,7 @@ export const TableOfContents: React.FC<{
                 >
                   <Link
                     href={`#${slug}`}
-                    className={`flex items-center pb-1 break-words hover:text-black dark:hover:text-white leading-snug text-left ${
+                    className={`flex items-center pb-1 wrap-break-word hover:text-black dark:hover:text-white leading-snug text-left ${
                       slug === activeHeading
                         ? "text-black font-extrabold dark:text-white dark:font-light"
                         : ""

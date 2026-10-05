@@ -84,7 +84,7 @@ export const Footer = () => {
         <Divider />
         <div
           className={`w-full ${
-            wide ? "max-w-screen-2xl" : "max-w-screen-2xl"
+            wide ? "max-w-(--breakpoint-2xl)" : "max-w-(--breakpoint-2xl)"
           } mx-auto px-4 sm:px-8 lg:px-16 py-24 flex flex-col sm:flex-row gap-10 justify-between`}
         >
           <div>

@@ -16,8 +16,8 @@ export const Button: FC<{
       href={href}
       className={`inline-flex relative z-10 h-10 rounded-sm p-px shadow-lg button-hover ${
         secondary
-          ? "bg-gradient-to-br from-zinc-300 to-zinc-500 mx-auto"
-          : "bg-gradient-to-b from-white to-zinc-300 mx-auto"
+          ? "bg-linear-to-br from-zinc-300 to-zinc-500 mx-auto"
+          : "bg-linear-to-b from-white to-zinc-300 mx-auto"
       } ${className}`}
       {...(external && {
         rel: "noopener noreferrer",
@@ -28,7 +28,7 @@ export const Button: FC<{
       <div
         className={`flex items-center gap-1 px-6 font-medium rounded-sm whitespace-nowrap ${
           secondary
-            ? "bg-gradient-to-br from-zinc-700 to-zinc-900 text-white"
+            ? "bg-linear-to-br from-zinc-700 to-zinc-900 text-white"
             : "text-black"
         }`}
       >
