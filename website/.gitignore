@@ -1,0 +1,7 @@
+node_modules
+.next
+.contentlayer
+examples/target
+.env
+.env.local
+.env.production
