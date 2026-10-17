@@ -70,7 +70,7 @@ async fn main() -> Result<(), BoxDynError> {
     let get_address = dag_flow.add_task(get_address);
 
     dag_flow
-        .node(collector)
+        .add_task(collector)
         .depends_on((&get_name, &get_age, &get_address));
 
     // Validate that the graph is acyclic and all dependencies are satisfiable.
