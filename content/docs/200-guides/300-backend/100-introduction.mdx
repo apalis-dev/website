@@ -1,0 +1,212 @@
+---
+title: Introduction
+excerpt: Learn how the Apalis Backend trait works — covering readiness, task polling, shutdown, and the waker-based polling contract for async Rust job queues.
+bottomNavigation: pagination
+---
+
+A **backend** in Apalis is the bridge between your application and a task store. It is responsible for deciding when a worker can take on more work, yielding tasks to that worker, and releasing its resources cleanly on shutdown. Any queue technology — Redis, PostgreSQL, SQLite, in-memory — becomes an Apalis backend by implementing the [`Backend`](#the-backend-trait) trait.
+
+> In other ecosystems you may know this concept as a *broker*, *queue*, or *transport*. In Apalis, the abstraction is intentionally broader than a queue: a backend may also manage acknowledgements, leases, heartbeats, subscriptions, and other state associated with processing tasks. The abstraction is deliberately generic so the same worker logic runs against any storage layer.
+
+---
+
+## The `Backend` Trait
+
+`Backend` defines the runtime contract between a worker and a task store. It covers three responsibilities, one per method:
+
+1. **Readiness** — `poll_ready` tells the worker whether the backend can accept a request for more work
+2. **Polling** — `poll_next` yields the next available task for the worker
+3. **Shutdown** — `poll_close` flushes pending operations and releases resources when the worker stops
+
+```rust
+#[must_use = "a Backend does nothing unless it is polled"]
+pub trait Backend: Sized {
+    /// The type of task the backend emits.
+    type Task;
+
+    /// The error type returned by backend operations.
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Polls whether the backend is ready for the worker to request more work.
+    ///
+    /// May be used to flush pending backend operations or perform other work
+    /// required before `poll_next` can be called.
+    fn poll_ready(
+        &mut self,
+        cx: &mut Context<'_>,
+        worker: &WorkerContext,
+    ) -> Poll<Result<(), Self::Error>>;
+
+    /// Polls the backend for the next available task for this worker.
+    fn poll_next(
+        &mut self,
+        cx: &mut Context<'_>,
+        worker: &WorkerContext,
+    ) -> Poll<Option<Result<Self::Task, Self::Error>>>;
+
+    /// Flushes and releases any resources the backend holds (pending acks,
+    /// open subscriptions, connections) before the worker fully shuts down.
+    fn poll_close(
+        &mut self,
+        cx: &mut Context<'_>,
+        worker: &WorkerContext,
+    ) -> Poll<Result<(), Self::Error>>;
+}
+```
+
+### Associated Types at a Glance
+
+| Type | Purpose |
+|---|---|
+| `Task` | The type of task the backend emits to the worker |
+| `Error` | Unified error type for all backend operations (`Error + Send + Sync + 'static`) |
+
+### Methods at a Glance
+
+| Method | Purpose |
+|---|---|
+| `poll_ready` | Reports whether the worker may request more work; can flush pending operations first |
+| `poll_next` | Yields the next task, `Pending` when none is available, or `None` when the backend is exhausted |
+| `poll_close` | Drives shutdown to completion, releasing all backend-owned resources |
+
+---
+
+## The Polling Contract
+
+The worker drives a backend by repeatedly calling `poll_ready`, `poll_next`, and `poll_close` as appropriate. These methods follow the same conventions as [`Future`](https://doc.rust-lang.org/std/future/trait.Future.html) and [`Stream`](https://docs.rs/futures-core/latest/futures_core/stream/trait.Stream.html), and implementations **must not block** inside them.
+
+- `Poll::Ready` means the operation can make progress immediately.
+- `Poll::Pending` means the operation cannot make progress yet, and the implementation **has registered the supplied waker** (`cx.waker()`).
+- The implementation must arrange for that waker to be woken when polling again may make progress.
+
+### Avoid busy-polling
+
+A backend should only produce a task when one is actually available. Once all currently available tasks have been drained, `poll_next` should return `Poll::Pending` and wait for the underlying source to signal that more work has arrived, rather than being polled again right away.
+
+The three possible results of `poll_next` are:
+
+| Result | Meaning |
+|---|---|
+| `Poll::Ready(Some(Ok(task)))` | A task is available for processing |
+| `Poll::Ready(Some(Err(e)))` | A backend error occurred |
+| `Poll::Pending` | No work right now; the waker is registered and will be woken when work arrives |
+| `Poll::Ready(None)` | The backend is exhausted and will never produce another task |
+
+Note that an idle backend is expressed with `Pending`, not with an empty item. `None` is terminal.
+
+### Shutdown
+
+`poll_close` is called when the worker is shutting down. It should keep making progress until all backend-owned resources and pending operations have been released. A backend must not report completion from `poll_close` while work it is responsible for flushing or releasing remains.
+
+---
+
+## Using a Backend with a Worker
+
+A backend is handed to a worker with `WorkerBuilder::backend`, which must be the second step in the builder chain. Layers and data are added after it:
+
+```rust
+let worker = WorkerBuilder::new("tasty-banana")
+    .backend(sqlite)
+    // default middleware: .layer / .data
+    .build(task_fn);
+```
+
+---
+
+## Implementing a Custom Backend
+
+Any type can become an Apalis backend by implementing `Backend`. The example below is a minimal in-memory backend, shown to illustrate the waker contract. Pushing a task stores the waker's wake-up in the same place `poll_next` registers it:
+
+```rust
+use std::{
+    collections::VecDeque,
+    convert::Infallible,
+    task::{Context, Poll, Waker},
+};
+use apalis::prelude::*;
+
+struct InMemoryBackend {
+    queue: VecDeque<Task<MyJob>>,
+    waker: Option<Waker>,
+}
+
+impl InMemoryBackend {
+    fn push(&mut self, task: Task<MyJob>) {
+        self.queue.push_back(task);
+        // New work arrived: wake the worker so it polls again.
+        if let Some(waker) = self.waker.take() {
+            waker.wake();
+        }
+    }
+}
+
+impl Backend for InMemoryBackend {
+    type Task = Task<MyJob>;
+    type Error = Infallible;
+
+    fn poll_ready(
+        &mut self,
+        _cx: &mut Context<'_>,
+        _worker: &WorkerContext,
+    ) -> Poll<Result<(), Self::Error>> {
+        // Nothing to flush; always ready.
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_next(
+        &mut self,
+        cx: &mut Context<'_>,
+        _worker: &WorkerContext,
+    ) -> Poll<Option<Result<Self::Task, Self::Error>>> {
+        match self.queue.pop_front() {
+            // A task was ready: return it immediately.
+            Some(task) => Poll::Ready(Some(Ok(task))),
+            // Nothing to do right now: register the waker and sleep
+            // until `push` wakes it.
+            None => {
+                self.waker = Some(cx.waker().clone());
+                Poll::Pending
+            }
+        }
+    }
+
+    fn poll_close(
+        &mut self,
+        _cx: &mut Context<'_>,
+        _worker: &WorkerContext,
+    ) -> Poll<Result<(), Self::Error>> {
+        // No pending acks or connections to release.
+        Poll::Ready(Ok(()))
+    }
+}
+```
+
+For most use cases, you will use one of Apalis's built-in backends rather than writing your own. See the [Implementations](#implementations) table below for the full list.
+
+---
+
+## Implementations
+
+| Backend | Crate | Best For |
+|---|---|---|
+| **PostgreSQL** | `apalis-postgres` | Durable jobs, existing Postgres infra |
+| **MySQL/MariaDB** | `apalis-mysql` | Durable jobs, existing MySQL infra |
+| **SQLite** | `apalis-sqlite` | Low-traffic or single-node deployments |
+| **Redis** | `apalis-redis` | High-throughput, low-latency job queues |
+| **AMQP** | `apalis-amqp` | Message broker-based architectures |
+| **PGMQ** | `apalis-pgmq` | Postgres-native message queues with at-least-once delivery |
+| **NATS** | `apalis-nats` | Distributed messaging, cloud-native and edge deployments |
+| **RSMQ** | `apalis-rsmq` | Redis-backed simple message queues |
+| **Cron** | `apalis-cron` | Schedule-driven jobs — use with [`pipe_to`](/docs/advanced-concepts/piping-streams) for persistence |
+
+---
+
+## Summary
+
+| Method | Responsibility |
+|---|---|
+| `poll_ready` | Signal readiness for more work, flushing pending operations if needed |
+| `poll_next` | Yield tasks lazily, registering the waker when idle |
+| `poll_close` | Finish all pending work and release resources on shutdown |
+
+Together these methods form a clean boundary between *how tasks are stored and retrieved* and *how they are processed* — letting you swap backends without touching your job handler logic.

@@ -1,0 +1,272 @@
+---
+title: BackendExt trait
+excerpt: Customize how a backend handles tasks, errors, polling, and startup or shutdown without changing its implementation.
+bottomNavigation: pagination
+---
+
+`BackendExt` provides convenient methods for customizing a backend. Instead of implementing these behaviors yourself, you can chain methods together to add error logging, change how tasks are encoded, control when a worker wakes up, or connect one backend to another.
+
+For example, you can add error logging and wake-on-push behavior with just a few lines:
+
+```rust
+let backend = backend
+    .inspect_err(|err| eprintln!("Backend error: {err}"))
+    .wake_on_push();
+```
+
+Each method wraps the existing backend with additional behavior, so you can combine the features you need.
+
+## Handling errors
+
+Sometimes you want to see errors without changing how your backend works. Other times, you need to convert errors into a common type so different backends can work together.
+
+### inspect_err
+
+Runs a callback whenever the backend produces an error. The original error is preserved.
+
+```rust
+let backend = backend.inspect_err(|err| {
+    eprintln!("Failed to fetch a task: {err}");
+});
+```
+
+Use this for logging, debugging, or monitoring backend failures.
+
+### map_err
+
+Converts errors into another error type.
+
+```rust
+let backend = backend.map_err(MyError::from);
+```
+
+This is useful when combining different backends that produce different kinds of errors, but your application expects one common error type.
+
+## Working with task data
+
+### poll_next_args
+
+Gets the next task and decodes its arguments for you.
+
+A backend may store tasks in a compact format. This method takes care of decoding that data into the arguments your job expects.
+
+```rust
+match backend.poll_next_args(cx, worker) {
+    Poll::Ready(Some(Ok(task))) => {
+        // Process a task with decoded arguments.
+    }
+    Poll::Ready(Some(Err(err))) => {
+        // Handle a backend or decoding error.
+    }
+    Poll::Ready(None) => {
+        // No more tasks are available.
+    }
+    Poll::Pending => {
+        // Wait until the backend is ready.
+    }
+}
+```
+
+You don't need to decode the task manually. The method also distinguishes errors from the backend itself from errors encountered while decoding task data.
+
+### with_codec
+
+Changes how task data is encoded and decoded without changing where or how the backend stores it.
+
+```rust
+let backend = backend.with_codec(JsonCodec::default());
+```
+
+For example, you could use JSON in one application and MessagePack in another while keeping the same storage backend. The selected codec must support the task argument type.
+
+## Connecting backends and task sources
+
+### pipe_to
+
+Forwards tasks from one backend into another.
+
+```rust
+let backend = old_backend.pipe_to(new_backend);
+```
+
+Imagine moving tasks from an old queue to a new, more durable queue. Rather than writing your own forwarding logic, `pipe_to` provides a way to connect the two backends.
+
+### interleave
+
+Combines tasks from a backend with tasks coming from another stream.
+
+```rust
+let backend = backend.interleave(external_stream);
+```
+
+For example, you might combine tasks from a queue with tasks supplied by an external event stream. Both sources must produce compatible task and error types.
+
+### shared
+
+Creates a cloneable handle to a backend. This method is available with the `shared` feature.
+
+```rust
+let backend = backend.shared();
+let another_handle = backend.clone();
+```
+
+This is useful when multiple parts of an application need access to the same backend. The backend and its codec must satisfy the method's requirements.
+
+## Controlling when workers wake up
+
+A worker needs to know when to check for new tasks. `BackendExt` lets you choose how that happens.
+
+### wake_on_push
+
+Wakes the worker when a new task is pushed.
+
+```rust
+let backend = backend.wake_on_push();
+```
+
+This is useful when you want a worker to react to incoming tasks instead of relying only on periodic checks.
+
+### poll_with_stream
+
+Uses an external stream to notify the worker when it may have work to do.
+
+```rust
+let backend = backend.poll_with_stream(notifications);
+```
+
+For example, the stream could represent notifications from another part of your application. The stream acts as a wake-up signal; it does not automatically become a source of tasks.
+
+### poll_with_interval
+
+Checks periodically for new work. Available with the `sleep` feature.
+
+```rust
+let backend = backend.poll_with_interval(
+    Duration::from_secs(5),
+);
+```
+
+This is helpful when the backend has no mechanism to notify the worker immediately. In this example, the configured interval is five seconds.
+
+### poll_with_backoff
+
+Uses a polling interval together with a backoff configuration. Available with the `sleep` feature.
+
+```rust
+let backend = backend.poll_with_backoff(
+    Duration::from_secs(1),
+    backoff_config,
+);
+```
+
+This is useful when you want polling behavior to adapt according to your backoff configuration rather than always using the same interval.
+
+### poll_with_strategy
+
+Lets you provide your own wake-up strategy.
+
+```rust
+let backend = backend.poll_with_strategy(my_strategy);
+```
+
+Use this when the built-in options don't fit your application's needs. Your strategy must implement `PollStrategy`.
+
+## Running code during startup and shutdown
+
+You can attach callbacks to different stages of a worker's lifecycle. Each callback runs once at its designated point and can perform asynchronous work.
+
+### before_start
+
+Runs before the backend's first readiness check is delegated.
+
+```rust
+let backend = backend.before_start(|backend| async move {
+    // Prepare resources before startup.
+    Ok(())
+});
+```
+
+Use it to prepare resources or perform setup before the backend starts its normal readiness process.
+
+### after_start
+
+Runs after the backend's first successful readiness check.
+
+```rust
+let backend = backend.after_start(|backend| async move {
+    // Perform work after the backend becomes ready.
+    Ok(())
+});
+```
+
+Use it when something should happen only after the backend is ready to operate.
+
+### before_stop
+
+Runs before the backend begins closing.
+
+```rust
+let backend = backend.before_stop(|backend| async move {
+    // Prepare for shutdown.
+    Ok(())
+});
+```
+
+Use it to prepare for shutdown before the backend's closing procedure begins.
+
+### after_stop
+
+Runs after the worker has stopped and the backend has completed cleanup.
+
+```rust
+let backend = backend.after_stop(|backend| async move {
+    // Report completion or perform final cleanup.
+    Ok(())
+});
+```
+
+Use it for final notifications or other work that should happen after shutdown.
+
+The callbacks return a `Result`, allowing errors to be reported through the backend's error type.
+
+## Adding tracing
+
+### instrumented
+
+Associates a tracing span with the backend's emitted events. Available with the `tracing` feature.
+
+```rust
+let backend = backend.instrumented(
+    tracing::info_span!("task_backend"),
+);
+```
+
+This helps you connect backend activity with other events in your application's tracing output, making it easier to understand what happened while processing tasks.
+
+## Quick reference
+
+| Method | What it does |
+|---|---|
+| `poll_next_args` | Retrieves a task and decodes its arguments. |
+| `inspect_err` | Logs or inspects errors without replacing them. |
+| `map_err` | Converts errors into another type. |
+| `with_codec` | Changes the task serialization format. |
+| `pipe_to` | Forwards tasks to another backend. |
+| `interleave` | Combines backend tasks with an external stream. |
+| `shared` | Creates cloneable backend handles. |
+| `wake_on_push` | Wakes the worker when tasks are pushed. |
+| `poll_with_stream` | Uses a stream for wake-up notifications. |
+| `poll_with_interval` | Wakes the worker periodically. |
+| `poll_with_backoff` | Uses a polling interval with backoff. |
+| `poll_with_strategy` | Uses a custom wake-up strategy. |
+| `before_start` | Runs code before initial readiness polling. |
+| `after_start` | Runs code after initial readiness succeeds. |
+| `before_stop` | Runs code before closing. |
+| `after_stop` | Runs code after shutdown and cleanup. |
+| `instrumented` | Adds a tracing span. |
+
+## When should you use BackendExt?
+
+Use `BackendExt` when your existing backend works but you want to change how it behaves around the edges. You can add logging, select a codec, connect task sources, configure wake-ups, or run lifecycle callbacks without rewriting the backend itself.
+
+The methods can also be chained together, letting you build a backend that fits your application while keeping the underlying storage implementation unchanged.
