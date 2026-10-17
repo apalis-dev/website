@@ -5,6 +5,8 @@ on:
   pull_request:
     branches: [main]
 
+
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -13,7 +15,20 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+
+      - name: Cache code
+        uses: actions/cache@v4
+        with:
+          # See here for caching with `yarn`, `bun` or other package managers https://github.com/actions/cache/blob/main/examples.md or you can leverage caching with actions/setup-node https://github.com/actions/setup-node
+          path: |
+            ~/.npm
+            ${{ github.workspace }}/.next/cache
+          # Generate a new cache whenever packages or source files change.
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
+          # If source files changed but packages didn't, rebuild from a prior cache.
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
 
       # 1. Install Rust and Build Artifacts
       - name: Install Rust
@@ -26,9 +41,9 @@ jobs:
 
       # 2. Build Next.js
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: 'yarn'
 
       - name: Install dependencies
@@ -36,6 +51,8 @@ jobs:
 
       - name: Build Next.js
         run: yarn build
+        env:
+          CONTENTLAYER_DEBUG: "1"
 
       # 3. Deploy to Vercel
       - name: Install Vercel CLI

@@ -241,14 +241,14 @@ async fn main() -> Result<(), BoxDynError> {
     // 3. Declare the DAG.
     let dag = GraphFlow::new("travel-planner");
 
-    let itinerary    = dag.node(build_itinerary);
-    let requirements = dag.node(find_requirements);
-    let hotels       = dag.node(find_hotels);
-    let flights      = dag.node(find_flights);
+    let itinerary    = dag.add_task(build_itinerary);
+    let requirements = dag.add_task(find_requirements);
+    let hotels       = dag.add_task(find_hotels);
+    let flights      = dag.add_task(find_flights);
 
     // The collector depends on all four — order here must match
     // the tuple in generate_report's signature.
-    dag.node(generate_report)
+    dag.add_task(generate_report)
         .depends_on((&itinerary, &requirements, &hotels, &flights));
 
     // 4. Validate before running — catches cycles and missing dependencies.

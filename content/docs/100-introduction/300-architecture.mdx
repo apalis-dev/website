@@ -119,9 +119,9 @@ Because middleware is composable Tower services, anything in the Tower ecosystem
 
 Any backend that implements `ListQueues`, `ListWorkers`, `ListTasks`, `ListAllTasks`, and `Metrics` automatically satisfies the `Expose` trait — and can be registered with `apalis-board` for real-time dashboard visibility. See [Exposing Backends](/docs/guides/backend/maintainance) and [Web UI](/docs/products/web-board).
 
-### Shared Connections — `MakeShared`
+### Shared Connections — `BackendFactory`
 
-When multiple workers share the same data store, `MakeShared` lets them derive independent typed backends from a single underlying connection — avoiding the overhead of one connection per worker. See [Shared Connections](/docs/guides/backend/shared-backend).
+When multiple workers share the same data store, `BackendFactory` lets them derive independent typed backends from a single underlying connection — avoiding the overhead of one connection per worker. See [Shared Connections](/docs/guides/backend/shared-backend).
 
 ### BackendExt — `BackendExt`
 
