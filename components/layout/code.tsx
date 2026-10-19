@@ -52,10 +52,10 @@ export const Code: FC<{
             </Tabs.List>
           </div>
           <div
-            style={{ height: fixedHeight }}
+            style={fixedHeight ? { minHeight: fixedHeight } : undefined}
             className={`${terminal ? "pb-8" : ""} ${
-              fixedHeight ? "" : "max-h-96"
-            } overflow-y-auto`}
+              fixedHeight ? "" : "max-h-96 overflow-y-auto"
+            }`}
           >
             {tabs.map(({ name, content, highlights, language }, index) => {
               const html = hljs.highlightAuto(

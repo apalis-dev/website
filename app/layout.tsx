@@ -58,7 +58,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png" />
       <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png" />
       <meta name="algolia-site-verification" content="2C97CAF9558A3A92" />
-      <body className="relative overflow-x-hidden antialiased font-light bg-white dark:bg-[#09090B] text-zinc-700 dark:text-zinc-300">
+      <body className="relative overflow-x-clip antialiased font-light bg-white dark:bg-[#09090B] text-zinc-700 dark:text-zinc-300">
         <Providers>
           {children}
           <Footer />

@@ -13,7 +13,7 @@ export default function HomePage() {
   return (
     <>
       <Navigation />
-      <main className="dark bg-[#09090B] text-zinc-400 w-full overflow-x-hidden min-h-screen relative pt-16 sm:pt-24">
+      <main className="dark bg-[#09090B] text-zinc-400 w-full overflow-x-clip min-h-screen relative pt-16 sm:pt-24">
         <AnimatedSection delay={0.1}>
           <Hero />
         </AnimatedSection>
