@@ -39,6 +39,15 @@ export default makeSource({
   contentDirPath: "content",
   documentTypes: [DocsPage, BlogPost, Tutorial],
   mdx: {
+    // Always compile MDX with the production JSX transform. Contentlayer caches the
+    // compiled MDX per document, so a dev-mode compile (which bundles
+    // react/jsx-dev-runtime) gets reused by `next build`, where that runtime crashes
+    // during prerendering with `getOwner is not a function`. Pinning it also cuts the
+    // generated body size substantially.
+    mdxOptions: (options) => {
+      options.development = false;
+      return options;
+    },
     remarkPlugins: [
       [remarkExampleCompiler, {}],
       [codeImport as any, { rootDir: process.cwd() + "/content" }],
