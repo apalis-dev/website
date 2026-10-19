@@ -39,13 +39,14 @@ export default makeSource({
   contentDirPath: "content",
   documentTypes: [DocsPage, BlogPost, Tutorial],
   mdx: {
-    // Always compile MDX with the production JSX transform. Contentlayer caches the
-    // compiled MDX per document, so a dev-mode compile (which bundles
-    // react/jsx-dev-runtime) gets reused by `next build`, where that runtime crashes
-    // during prerendering with `getOwner is not a function`. Pinning it also cuts the
-    // generated body size substantially.
+    // Use the development JSX transform outside production (better MDX debugging) and
+    // the production transform for builds. Contentlayer caches compiled bodies keyed
+    // only by the schema hash, not NODE_ENV, so a dev-compiled body would otherwise be
+    // reused by `next build`, where its bundled react/jsx-dev-runtime crashes
+    // prerendering with `getOwner is not a function`. The `prebuild` script clears the
+    // cache so builds always recompile with the production transform.
     mdxOptions: (options) => {
-      options.development = false;
+      options.development = !(process.env.NODE_ENV === "production");
       return options;
     },
     remarkPlugins: [
