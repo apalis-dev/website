@@ -180,7 +180,7 @@ function compileRustCode(
           cwd: exampleLibPath,
           stdio: "pipe",
           encoding: "utf-8",
-          timeout: 30000,
+          timeout: 180000,
         }
       );
 
