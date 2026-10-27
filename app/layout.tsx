@@ -1,13 +1,17 @@
 import "../styles/globals.css";
 
+import { ClerkProvider } from "@clerk/nextjs";
+import { dark } from "@clerk/themes";
 import { Footer } from "@/components/layout/footer";
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Geist } from "next/font/google";
 import localFont from "next/font/local";
 import { ReactNode } from "react";
 import { Providers } from "./providers";
-import { headers } from "next/headers";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-geist'});
 
 const inter = Inter({
   subsets: ["latin"],
@@ -48,7 +52,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className={`relative ${inter.variable} ${calSans.variable} dark`}
+      className={cn("relative", "dark", inter.variable, calSans.variable, "font-sans", geist.variable)}
       suppressHydrationWarning
     >
       <link rel="icon" type="image/x-icon" href="/favicon.ico" />
@@ -58,6 +62,19 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png" />
       <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png" />
       <meta name="algolia-site-verification" content="2C97CAF9558A3A92" />
+      <body className="relative overflow-x-hidden antialiased font-light bg-background text-zinc-700 dark:text-zinc-300">
+        <ClerkProvider
+          appearance={{ baseTheme: dark }}
+          signInUrl="/login"
+          signUpUrl="/sign-up"
+          afterSignOutUrl="/login"
+        >
+          <Providers>
+            {children}
+            <Footer />
+            <Analytics />
+          </Providers>
+        </ClerkProvider>
       <body className="relative overflow-x-clip antialiased font-light bg-white dark:bg-[#09090B] text-zinc-700 dark:text-zinc-300">
         <Providers>
           {children}

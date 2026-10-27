@@ -5,4 +5,17 @@ examples/target
 .env
 .env.local
 .env.production
+
+# Yarn
+.pnp.*
+.yarn/*
+
+# SQLite databases
+*.db
+*.db-journal
+sqlite.db
+
+# CJS files
+.tmp*
+.tmp-2fa-test.cjs
 .DS_Store

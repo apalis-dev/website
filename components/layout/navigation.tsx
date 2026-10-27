@@ -1,35 +1,35 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { Logo } from "../atoms/logo"
-import { Icon } from "../icons"
-import { Search } from "../atoms/search"
-import { usePathname } from "next/navigation"
-import React from "react"
-import { MobileMenu } from "./mobile-menu"
+import Link from "next/link";
+import { Logo } from "../atoms/logo";
+import { Icon } from "../icons";
+import { Search } from "../atoms/search";
+import { usePathname } from "next/navigation";
+import React from "react";
+import { MobileMenu } from "./mobile-menu";
 
 export interface NavigationLink {
-  readonly name: string
-  readonly href: string
-  readonly reload?: boolean
+  readonly name: string;
+  readonly href: string;
+  readonly reload?: boolean;
 }
 
 const links: Array<NavigationLink> = [
   { name: "Docs", href: "/docs" },
   { name: "Blog", href: "/blog" },
   { name: "Pricing", href: "/pricing" },
-]
+];
 
 const socials = [
   { name: "GitHub", icon: "github", href: "https://github.com/apalis-dev" },
-  { name: "Discord", icon: "discord", href: "https://discord.gg/W29BYSXXmp" }
-]
+  { name: "Discord", icon: "discord", href: "https://discord.gg/W29BYSXXmp" },
+];
 
 export const Navigation: React.FC<{
-  wide?: boolean | false
-  searchBox?: boolean | false
-  themeSwitcher?: boolean | false
-  inline?: boolean
+  wide?: boolean | false;
+  searchBox?: boolean | false;
+  themeSwitcher?: boolean | false;
+  inline?: boolean;
 }> = ({ wide, searchBox, themeSwitcher, inline = false }) => {
   return (
     <div>
@@ -43,8 +43,8 @@ export const Navigation: React.FC<{
             inline
               ? "border-b dark:border-neutral-700"
               : wide
-                ? "max-w-screen-2xl"
-                : "max-w-screen-2xl"
+              ? "max-w-(--breakpoint-2xl)"
+              : "max-w-(--breakpoint-2xl)"
           } mx-auto px-4 sm:px-8 lg:px-16 h-16 sm:h-24 flex justify-between items-center`}
         >
           <Link href="/" className="z-50">
@@ -69,24 +69,24 @@ export const Navigation: React.FC<{
         </div>
       </header>
     </div>
-  )
-}
+  );
+};
 
 export function NavigationMenu() {
-  return <NavigationLinks links={links} />
+  return <NavigationLinks links={links} />;
 }
 
 const NavigationLinks: React.FC<{ links: ReadonlyArray<NavigationLink> }> = (
   props
 ) => {
-  const pathname = usePathname()
+  const pathname = usePathname();
 
   const shouldReload = props.links.some(
     (link) => link.href === pathname && link.reload
-  )
+  );
   const links = shouldReload
     ? props.links.map((link) => ({ ...link, reload: true }))
-    : props.links
+    : props.links;
 
   return (
     <>
@@ -94,12 +94,12 @@ const NavigationLinks: React.FC<{ links: ReadonlyArray<NavigationLink> }> = (
         <NavigationLink key={index} {...link} />
       ))}
     </>
-  )
-}
+  );
+};
 
 function NavigationLink({ name, href, reload }: NavigationLink) {
-  const pathname = usePathname()
-  const Component = reload ? "a" : Link
+  const pathname = usePathname();
+  const Component = reload ? "a" : Link;
   return (
     <Component
       href={href}
@@ -114,5 +114,5 @@ function NavigationLink({ name, href, reload }: NavigationLink) {
         <Icon name="arrow-up-right-light" className="h-3.5 mt-0.5 ml-0.5" />
       )}
     </Component>
-  )
+  );
 }
