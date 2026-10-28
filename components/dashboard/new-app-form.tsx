@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import type { WorkspacePlan } from "@/lib/dashboard/types";
 import { cn } from "@/lib/utils";
 
 const iconColors = [
@@ -20,7 +21,12 @@ const iconColors = [
   "bg-cyan-500",
 ];
 
-export function NewAppForm() {
+interface NewAppFormProps {
+  plan: WorkspacePlan;
+  remainingApps: number;
+}
+
+export function NewAppForm({ plan, remainingApps }: NewAppFormProps) {
   const router = useRouter();
 
   const [name, setName] = useState("");
@@ -168,7 +174,10 @@ export function NewAppForm() {
                     <span className="size-2 rounded-full bg-emerald-500" />
                     Active
                   </span>
-                  <span>Free Plan</span>
+                  <span>{plan} Plan</span>
+                  <span>
+                    {remainingApps} app{remainingApps === 1 ? "" : "s"} left
+                  </span>
                   <span>Created today</span>
                 </div>
               </div>

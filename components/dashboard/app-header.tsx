@@ -1,13 +1,14 @@
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { AppTabs } from "@/components/dashboard/app-tabs";
-import type { DashboardApp } from "@/lib/dashboard/types";
+import type { DashboardApp, WorkspacePlan } from "@/lib/dashboard/types";
 
 interface AppHeaderProps {
   app: DashboardApp;
+  workspacePlan: WorkspacePlan;
 }
 
-export function AppHeader({ app }: AppHeaderProps) {
+export function AppHeader({ app, workspacePlan }: AppHeaderProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
@@ -33,7 +34,7 @@ export function AppHeader({ app }: AppHeaderProps) {
           <Badge variant="secondary" className="uppercase">
             {app.status}
           </Badge>
-          <Badge>{app.plan}</Badge>
+          <Badge variant="outline">{workspacePlan} workspace</Badge>
         </div>
       </div>
 

@@ -19,7 +19,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { mockApps, mockTickets } from "@/lib/dashboard/mock-data";
+import { getWorkspaceTickets } from "@/lib/dashboard/mock-data";
+import { getDashboardWorkspace } from "@/lib/dashboard/workspace-server";
 import { cn } from "@/lib/utils";
 
 const priorityConfig: Record<
@@ -56,12 +57,13 @@ export default async function Page({
   params: Promise<{ ticketId: string }>;
 }) {
   const { ticketId } = await params;
+  const workspace = await getDashboardWorkspace();
 
-  const ticket = mockTickets.find((t) => t.id === ticketId);
+  const ticket = getWorkspaceTickets(workspace).find((t) => t.id === ticketId);
 
   if (!ticket) notFound();
 
-  const app = mockApps.find((a) => a.id === ticket.appId);
+  const app = workspace.apps.find((a) => a.id === ticket.appId);
 
   const priority = priorityConfig[ticket.priority];
 

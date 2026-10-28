@@ -12,7 +12,7 @@ interface AppTabsProps {
 const tabs = [
   { label: "Overview", segment: "" },
   { label: "API Keys", segment: "/api-keys" },
-  { label: "Subscription", segment: "/subscription" },
+  { label: "Plan", segment: "/subscription" },
   { label: "Tickets", segment: "/tickets" },
   { label: "Settings", segment: "/settings" },
 ];

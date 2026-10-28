@@ -24,12 +24,6 @@ const statusConfig: Record<
   },
 };
 
-const planVariant: Record<DashboardApp["plan"], "default" | "secondary"> = {
-  Free: "secondary",
-  Pro: "default",
-  Enterprise: "default",
-};
-
 interface AppCardProps {
   app: DashboardApp;
 }
@@ -73,7 +67,7 @@ export function AppCard({ app }: AppCardProps) {
                 {status.label}
               </span>
 
-              <span>{app.plan}</span>
+              <span>{app.apiKeyId ? "Key active" : "No key"}</span>
             </div>
 
             <span className="text-muted-foreground">

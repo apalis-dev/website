@@ -6,7 +6,7 @@ export default function Page() {
       <div>
         <h1 className="text-lg font-medium">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Manage your account and API keys.
+          Manage your account and security.
         </p>
       </div>
 

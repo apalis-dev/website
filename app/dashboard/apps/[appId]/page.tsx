@@ -1,14 +1,28 @@
+import Link from "next/link";
 import { format } from "date-fns";
 import {
   ActivityIcon,
+  Building2Icon,
   CalendarIcon,
   CreditCardIcon,
   KeyIcon,
+  LayersIcon,
+  UsersIcon,
 } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getAppById, getSubscriptionByAppId } from "@/lib/dashboard/mock-data";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  getApiKeyPreview,
+  getAppById,
+} from "@/lib/dashboard/mock-data";
+import { getDashboardWorkspace } from "@/lib/dashboard/workspace-server";
+import {
+  getAppCount,
+  getMemberCount,
+  getWorkspaceLimits,
+} from "@/lib/workspace/policy";
 import { cn } from "@/lib/utils";
 
 export default async function Page({
@@ -17,13 +31,13 @@ export default async function Page({
   params: Promise<{ appId: string }>;
 }) {
   const { appId } = await params;
-
-  const app = getAppById(appId);
-  const subscription = getSubscriptionByAppId(appId);
+  const workspace = await getDashboardWorkspace();
+  const app = getAppById(workspace, appId);
 
   if (!app) return null;
 
-  const maskedKey = `${app.apiKey.slice(0, 12)}${"•".repeat(10)}`;
+  const limits = getWorkspaceLimits(workspace.plan);
+  const apiKeyPreview = getApiKeyPreview(app);
 
   const statusColor = {
     active: "bg-brand",
@@ -54,10 +68,10 @@ export default async function Page({
           <div className="flex items-center justify-between py-3">
             <div className="flex items-center gap-2 text-muted-foreground">
               <CreditCardIcon className="size-4" />
-              <span>Plan</span>
+              <span>Workspace plan</span>
             </div>
 
-            <Badge>{app.plan}</Badge>
+            <Badge>{workspace.plan}</Badge>
           </div>
 
           <div className="flex items-center justify-between py-3">
@@ -77,54 +91,65 @@ export default async function Page({
               <span>API Key</span>
             </div>
 
-            <code className="rounded-md bg-muted px-2 py-1 font-mono text-xs">
-              {maskedKey}
-            </code>
+            {apiKeyPreview ? (
+              <code className="rounded-md bg-muted px-2 py-1 font-mono text-xs">
+                {apiKeyPreview}
+              </code>
+            ) : (
+              <span className="text-sm text-muted-foreground">Not created</span>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {subscription && (
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Billing</CardTitle>
-          </CardHeader>
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>Workspace</CardTitle>
+        </CardHeader>
 
-          <CardContent className="divide-y">
+        <CardContent className="space-y-4">
+          <div className="divide-y">
             <div className="flex items-center justify-between py-3">
-              <span className="text-muted-foreground">Current Plan</span>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Building2Icon className="size-4" />
+                <span>Workspace</span>
+              </div>
+
+              <span className="font-medium">{workspace.name}</span>
+            </div>
+
+            <div className="flex items-center justify-between py-3">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <LayersIcon className="size-4" />
+                <span>Apps</span>
+              </div>
 
               <span className="font-medium">
-                {subscription.currency === "USD" ? "$" : ""}
-                {(subscription.amount / 100).toFixed(2)}
-                <span className="text-muted-foreground">
-                  /{subscription.interval}
-                </span>
+                {getAppCount(workspace)} of {limits.maxApps}
               </span>
             </div>
 
             <div className="flex items-center justify-between py-3">
-              <span className="text-muted-foreground">Next Billing</span>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <UsersIcon className="size-4" />
+                <span>Members</span>
+              </div>
 
               <span className="font-medium">
-                {subscription.nextBillingDate}
+                {getMemberCount(workspace)} of {limits.maxMembers}
               </span>
             </div>
+          </div>
 
-            <div className="flex items-center justify-between py-3">
-              <span className="text-muted-foreground">Subscription Status</span>
-
-              <Badge
-                variant={
-                  subscription.status === "active" ? "success" : "secondary"
-                }
-              >
-                {subscription.status}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          <Button
+            variant="outline"
+            size="sm"
+            render={<Link href="/dashboard/billing" />}
+          >
+            Manage workspace billing
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

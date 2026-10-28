@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { CheckIcon, ChevronDownIcon } from "lucide-react";
 
-import { mockApps } from "@/lib/dashboard/mock-data";
+import { useWorkspace } from "@/lib/dashboard/workspace-context";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -21,13 +21,23 @@ interface AppSwitcherProps {
 }
 
 export function AppSwitcher({ currentAppId, pathname }: AppSwitcherProps) {
-  const current = mockApps.find((a) => a.id === currentAppId);
+  const { workspace } = useWorkspace();
+  const apps = workspace.apps;
+  const current = apps.find((app) => app.id === currentAppId);
 
   const segments = pathname.split("/").filter(Boolean);
   const appIndex = segments.findIndex((segment) =>
-    mockApps.some((app) => app.id === segment)
+    apps.some((app) => app.id === segment)
   );
   const tail = segments.slice(appIndex + 1).join("/");
+
+  if (apps.length <= 1) {
+    return (
+      <span className="font-medium text-foreground">
+        {current?.name ?? "Application"}
+      </span>
+    );
+  }
 
   return (
     <DropdownMenu>
@@ -40,7 +50,7 @@ export function AppSwitcher({ currentAppId, pathname }: AppSwitcherProps) {
         <DropdownMenuGroup>
           <DropdownMenuLabel>Switch application</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {mockApps.map((app) => (
+          {apps.map((app) => (
             <DropdownMenuItem
               key={app.id}
               render={

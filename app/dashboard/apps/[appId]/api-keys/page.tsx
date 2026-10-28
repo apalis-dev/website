@@ -1,4 +1,5 @@
-import { getAppById } from "@/lib/dashboard/mock-data";
+import { getAppById, getApiKeyPreview } from "@/lib/dashboard/mock-data";
+import { getDashboardWorkspace } from "@/lib/dashboard/workspace-server";
 import { ApiKeyPage } from "@/components/dashboard/app-api-key-content";
 
 export default async function Page({
@@ -7,9 +8,15 @@ export default async function Page({
   params: Promise<{ appId: string }>;
 }) {
   const { appId } = await params;
-  const app = getAppById(appId);
+  const workspace = await getDashboardWorkspace();
+  const app = getAppById(workspace, appId);
 
   if (!app) return null;
 
-  return <ApiKeyPage apiKey={app.apiKey} />;
+  return (
+    <ApiKeyPage
+      apiKeyId={app.apiKeyId}
+      apiKeyPreview={getApiKeyPreview(app)}
+    />
+  );
 }

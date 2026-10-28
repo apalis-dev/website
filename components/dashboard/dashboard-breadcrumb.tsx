@@ -5,13 +5,13 @@ import { usePathname } from "next/navigation";
 import { Fragment } from "react";
 import { ChevronRightIcon } from "lucide-react";
 
-import { mockApps } from "@/lib/dashboard/mock-data";
+import { useWorkspace } from "@/lib/dashboard/workspace-context";
 import { AppSwitcher } from "@/components/dashboard/app-switcher";
 
 const segmentLabels: Record<string, string> = {
   dashboard: "Dashboard",
   apps: "Apps",
-  subscription: "Subscription",
+  subscription: "Plan",
   tickets: "Tickets",
   settings: "Settings",
   billing: "Billing",
@@ -19,27 +19,28 @@ const segmentLabels: Record<string, string> = {
   new: "New",
 };
 
-function getLabel(segment: string) {
-  const app = mockApps.find((a) => a.id === segment);
-
-  if (app) return app.name;
-
-  return segmentLabels[segment] ?? segment;
-}
-
 export function DashboardBreadcrumb() {
   const pathname = usePathname();
+  const { workspace } = useWorkspace();
 
   if (!pathname) return null;
 
   const segments = pathname.split("/").filter(Boolean);
+
+  function getLabel(segment: string) {
+    const app = workspace.apps.find((item) => item.id === segment);
+
+    if (app) return app.name;
+
+    return segmentLabels[segment] ?? segment;
+  }
 
   return (
     <nav className="flex items-center gap-1 overflow-hidden text-sm">
       {segments.map((segment, index) => {
         const href = "/" + segments.slice(0, index + 1).join("/");
         const isLast = index === segments.length - 1;
-        const isApp = mockApps.some((a) => a.id === segment);
+        const isApp = workspace.apps.some((app) => app.id === segment);
 
         return (
           <Fragment key={href}>

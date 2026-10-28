@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/sidebar";
 import { SidebarHeaderDropdown } from "./sidebar-header-dropdown";
 import { SidebarFooterDropdown } from "./sidebar-footer-dropdown";
+import { useWorkspace } from "@/lib/dashboard/workspace-context";
 
 const navGroups = [
   {
@@ -75,6 +76,7 @@ function getInitials(name: string) {
 export function AppSidebar() {
   const pathname = usePathname() ?? "";
   const { user } = useUser();
+  const { workspace } = useWorkspace();
 
   const name = user?.fullName ?? user?.username ?? "—";
   const email = user?.primaryEmailAddress?.emailAddress ?? "—";
@@ -100,10 +102,7 @@ export function AppSidebar() {
       <SidebarHeader className="border-b border-border py-4">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarHeaderDropdown
-              name={name}
-              initials={initials}
-            />
+            <SidebarHeaderDropdown />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
@@ -147,7 +146,7 @@ export function AppSidebar() {
             <SidebarFooterDropdown
               name={name}
               email={email}
-              plan="free"
+              plan={workspace.plan}
               avatarSrc={image}
               initials={initials}
             />

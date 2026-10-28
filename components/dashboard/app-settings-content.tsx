@@ -105,9 +105,9 @@ export function AppSettingsContent({ app }: AppSettingsContentProps) {
             <div>
               <h4 className="font-medium">Delete application</h4>
               <p className="mt-1 max-w-lg text-sm text-muted-foreground">
-                Permanently delete <strong>{app.name}</strong>, including API
-                keys, webhook endpoints, subscriptions, logs and all associated
-                data.
+                Permanently delete <strong>{app.name}</strong>, including its API
+                key, webhook endpoints, tickets and all associated data. The
+                workspace plan and other apps are not affected.
               </p>
             </div>
 

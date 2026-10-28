@@ -5,6 +5,7 @@ import {
   CheckIcon,
   CopyIcon,
   KeyRoundIcon,
+  PlusIcon,
   RefreshCwIcon,
   ShieldAlertIcon,
 } from "lucide-react";
@@ -14,23 +15,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface ApiKeyPageProps {
-  apiKey: string;
+  apiKeyId?: string;
+  apiKeyPreview?: string;
 }
 
-export function ApiKeyPage({ apiKey }: ApiKeyPageProps) {
+export function ApiKeyPage({ apiKeyId, apiKeyPreview }: ApiKeyPageProps) {
   const [copied, setCopied] = useState(false);
+  const hasKey = Boolean(apiKeyId);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(apiKey);
+    if (!apiKeyId) return;
+
+    await navigator.clipboard.writeText(apiKeyId);
 
     setCopied(true);
-    toast.success("API key copied");
+    toast.success("API key ID copied");
 
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleRegenerate = () => {
-    toast.info("Regenerating API key…");
   };
 
   return (
@@ -47,32 +48,54 @@ export function ApiKeyPage({ apiKey }: ApiKeyPageProps) {
               Production
             </div>
 
-            <code className="block overflow-x-auto rounded-md bg-background px-3 py-2 font-mono text-xs">
-              {apiKey}
-            </code>
+            {hasKey ? (
+              <code className="block overflow-x-auto rounded-md bg-background px-3 py-2 font-mono text-xs">
+                {apiKeyPreview ?? apiKeyId}
+              </code>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No API key has been created for this application.
+              </p>
+            )}
 
             <p className="mt-3 text-sm text-muted-foreground">
-              Use this key to authenticate requests from your production
-              environment. Keep it secret and never expose it in client-side
-              code.
+              Apalis stores only the Clerk API key ID. The full secret is shown
+              once when the key is created or rotated.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={handleCopy}>
-              {copied ? (
-                <CheckIcon className="size-4 text-brand" />
-              ) : (
-                <CopyIcon className="size-4" />
-              )}
+            {hasKey ? (
+              <>
+                <Button variant="outline" size="sm" onClick={handleCopy}>
+                  {copied ? (
+                    <CheckIcon className="size-4 text-brand" />
+                  ) : (
+                    <CopyIcon className="size-4" />
+                  )}
 
-              {copied ? "Copied" : "Copy"}
-            </Button>
+                  {copied ? "Copied" : "Copy key ID"}
+                </Button>
 
-            <Button variant="outline" size="sm" onClick={handleRegenerate}>
-              <RefreshCwIcon className="size-4" />
-              Rotate Key
-            </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => toast.info("Rotating API key…")}
+                >
+                  <RefreshCwIcon className="size-4" />
+                  Rotate Key
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => toast.info("Creating API key…")}
+              >
+                <PlusIcon className="size-4" />
+                Create Key
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -99,6 +122,7 @@ export function ApiKeyPage({ apiKey }: ApiKeyPageProps) {
             <Button
               variant="destructive"
               size="sm"
+              disabled={!hasKey}
               onClick={() => toast.error("API key revoked")}
             >
               Revoke

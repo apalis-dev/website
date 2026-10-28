@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getTicketsByAppId } from "@/lib/dashboard/mock-data";
+import { getDashboardWorkspace } from "@/lib/dashboard/workspace-server";
 
 const priorityColor = {
   low: "text-muted-foreground",
@@ -32,8 +33,9 @@ export default async function Page({
   params: Promise<{ appId: string }>;
 }) {
   const { appId } = await params;
+  const workspace = await getDashboardWorkspace();
 
-  const tickets = getTicketsByAppId(appId);
+  const tickets = getTicketsByAppId(workspace, appId);
 
   const open = tickets.filter((t) => t.status === "open").length;
   const progress = tickets.filter((t) => t.status === "in_progress").length;
