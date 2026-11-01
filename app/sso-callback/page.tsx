@@ -11,8 +11,10 @@ export default function Page() {
     <div className="flex min-h-[calc(100svh-3.5rem)] items-center justify-center px-4">
       <HandleSSOCallback
         navigateToApp={({ session, decorateUrl }) => {
+          // Pending sessions (e.g. the required organization choice) are
+          // treated as signed-out by Clerk until the task is completed.
           if (session?.currentTask) {
-            router.push("/dashboard/apps");
+            router.push("/select-workspace");
             return;
           }
 

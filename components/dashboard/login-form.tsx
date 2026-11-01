@@ -70,8 +70,10 @@ export function LoginForm() {
   const finishSignIn = async () => {
     await signIn.finalize({
       navigate: ({ session, decorateUrl }) => {
+        // Pending sessions (e.g. the required organization choice) are treated
+        // as signed-out by Clerk until the task is completed.
         if (session?.currentTask) {
-          router.push("/dashboard/apps");
+          router.push("/select-workspace");
           return;
         }
 

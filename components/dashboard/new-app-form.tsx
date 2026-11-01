@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckIcon, RocketIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { createAppAction } from "@/app/dashboard/apps/actions";
 import type { WorkspacePlan } from "@/lib/dashboard/types";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +33,8 @@ export function NewAppForm({ plan, remainingApps }: NewAppFormProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState(iconColors[0]);
-  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, startTransition] = useTransition();
 
   const slug = useMemo(
     () =>
@@ -56,17 +58,32 @@ export function NewAppForm({ plan, remainingApps }: NewAppFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!name.trim()) {
+    const trimmedName = name.trim();
+
+    if (!trimmedName) {
       toast.error("Please enter an application name.");
       return;
     }
 
-    setSubmitting(true);
-    toast.success("Application created");
+    setError(null);
 
-    setTimeout(() => {
-      router.push("/dashboard/apps");
-    }, 800);
+    startTransition(async () => {
+      const result = await createAppAction({
+        name: trimmedName,
+        description,
+        color,
+      });
+
+      if (!result.ok) {
+        setError(result.error);
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success("Application created");
+      router.push(`/dashboard/apps/${result.app.id}`);
+      router.refresh();
+    });
   };
 
   return (
@@ -185,6 +202,15 @@ export function NewAppForm({ plan, remainingApps }: NewAppFormProps) {
           </div>
         </div>
       </div>
+
+      {error && (
+        <div
+          role="alert"
+          className="mt-6 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
+          {error}
+        </div>
+      )}
 
       <div className="mt-10 flex items-center justify-end border-t pt-6">
         <Button type="submit" disabled={submitting} className="min-w-36">

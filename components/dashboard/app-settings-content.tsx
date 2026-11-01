@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,6 +16,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import {
+  deleteAppAction,
+  updateAppAction,
+} from "@/app/dashboard/apps/actions";
 import type { DashboardApp } from "@/lib/dashboard/types";
 
 interface AppSettingsContentProps {
@@ -22,8 +27,58 @@ interface AppSettingsContentProps {
 }
 
 export function AppSettingsContent({ app }: AppSettingsContentProps) {
+  const router = useRouter();
   const [name, setName] = useState(app.name);
   const [description, setDescription] = useState(app.description ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const saveChanges = () => {
+    setError(null);
+
+    startTransition(async () => {
+      const result = await updateAppAction({
+        appId: app.id,
+        name,
+        description,
+      });
+
+      if (!result.ok) {
+        setError(result.error);
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success("Settings saved");
+      router.refresh();
+    });
+  };
+
+  const deleteApp = () => {
+    if (
+      !window.confirm(
+        `Delete ${app.name}? This removes the app from the workspace and cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    setError(null);
+
+    startTransition(async () => {
+      const result = await deleteAppAction(app.id);
+
+      if (!result.ok) {
+        setError(result.error);
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success("Application deleted");
+      router.push("/dashboard/apps");
+      router.refresh();
+    });
+  };
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -84,9 +139,15 @@ export function AppSettingsContent({ app }: AppSettingsContentProps) {
 
           <Separator />
 
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+
           <div className="flex justify-end">
-            <Button onClick={() => toast.success("Settings saved")}>
-              Save changes
+            <Button onClick={saveChanges} disabled={pending}>
+              {pending ? "Saving..." : "Save changes"}
             </Button>
           </div>
         </CardContent>
@@ -113,10 +174,11 @@ export function AppSettingsContent({ app }: AppSettingsContentProps) {
 
             <Button
               variant="destructive"
-              onClick={() => toast.error("Deletion requires confirmation")}
+              onClick={deleteApp}
+              disabled={pending}
             >
               <Trash2Icon className="size-4" />
-              Delete App
+              {pending ? "Working..." : "Delete App"}
             </Button>
           </div>
         </CardContent>

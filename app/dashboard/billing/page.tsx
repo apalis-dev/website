@@ -30,6 +30,7 @@ import {
   getMemberCount,
   getWorkspaceLimits,
 } from "@/lib/workspace/policy";
+import { isPaidPlan } from "@/lib/workspace/plan";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ export default async function Page() {
   const workspace = await getDashboardWorkspace();
   const limits = getWorkspaceLimits(workspace.plan);
   const subscription = workspace.subscription;
-  const isPaid = subscription.amount > 0;
+  const isPaid = isPaidPlan(workspace.plan);
   const interval = subscription.interval === "yearly" ? "year" : "month";
 
   return (
@@ -195,15 +196,24 @@ export default async function Page() {
         <CardHeader>
           <CardTitle>Clerk Billing</CardTitle>
           <CardDescription>
-            Checkout, payment method and invoices move to Clerk Billing for the
-            workspace.
+            Clerk Billing is the source of truth for this workspace&apos;s plan
+            and subscription.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            This is a read-only view during the billing migration. Paystack is
-            no longer used for new subscriptions. Connect the Clerk org plans to
-            enable checkout and invoice downloads.
+          <div className="flex flex-col gap-4 rounded-lg border border-dashed p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Subscription state is read from Clerk. Use the plan picker to
+              upgrade or change this workspace&apos;s plan. Invoices and
+              payment-method management are not wired into this page yet.
+            </p>
+
+            <Button
+              variant="outline"
+              render={<Link href="/dashboard/billing/plans" />}
+            >
+              Change plan
+            </Button>
           </div>
         </CardContent>
       </Card>

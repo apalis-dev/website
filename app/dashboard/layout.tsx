@@ -16,10 +16,16 @@ export default async function DashboardLayout({
 }: {
   children: ReactNode
 }) {
-  const { userId } = await auth()
+  const { userId, sessionStatus } = await auth({
+    treatPendingAsSignedOut: false,
+  })
 
   if (!userId) {
     redirect("/login")
+  }
+
+  if (sessionStatus === "pending") {
+    redirect("/select-workspace")
   }
 
   const [workspace, workspaces] = await Promise.all([

@@ -70,6 +70,19 @@ export function assertCanCreateApp(workspace: Workspace): void {
   }
 }
 
+export function assertCanCreateAppForPlan(
+  plan: WorkspacePlan,
+  appCount: number
+): void {
+  const limits = getWorkspaceLimits(plan);
+
+  if (appCount >= limits.maxApps) {
+    throw new Error(
+      `${plan} workspaces can have ${limits.maxApps} app(s). Upgrade the workspace to add more.`
+    );
+  }
+}
+
 export function assertCanInviteMember(workspace: Workspace): void {
   if (!canInviteMember(workspace)) {
     throw new Error(

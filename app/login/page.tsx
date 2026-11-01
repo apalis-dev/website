@@ -8,10 +8,14 @@ import { LoginForm } from "@/components/dashboard/login-form";
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const { userId } = await auth();
+  const { userId, sessionStatus } = await auth({
+    treatPendingAsSignedOut: false,
+  });
 
   if (userId) {
-    redirect("/dashboard/apps");
+    redirect(
+      sessionStatus === "pending" ? "/select-workspace" : "/dashboard/apps"
+    );
   }
 
   return (

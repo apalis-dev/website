@@ -1,7 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { CheckIcon, ChevronsUpDownIcon, CreditCardIcon } from "lucide-react";
+import {
+  CheckIcon,
+  ChevronsUpDownIcon,
+  CreditCardIcon,
+  PlusIcon,
+} from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -104,6 +109,18 @@ export function SidebarHeaderDropdown() {
         <DropdownMenuSeparator />
 
         <DropdownMenuGroup>
+          <DropdownMenuItem
+            render={
+              <Link
+                href="/select-workspace"
+                className="flex cursor-pointer items-center gap-3"
+              />
+            }
+          >
+            <PlusIcon className="size-4" />
+            Create workspace
+          </DropdownMenuItem>
+
           <DropdownMenuItem
             render={
               <Link

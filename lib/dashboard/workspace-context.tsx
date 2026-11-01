@@ -2,6 +2,8 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useOrganizationList } from "@clerk/nextjs";
+import { toast } from "sonner";
 
 import type { Workspace, WorkspaceSummary } from "@/lib/dashboard/types";
 import {
@@ -21,7 +23,7 @@ interface WorkspaceContextValue {
   remainingMembers: number;
   canCreateApp: boolean;
   canInviteMember: boolean;
-  switchWorkspace: (workspaceId: string) => void;
+  switchWorkspace: (workspaceId: string) => Promise<void>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -38,16 +40,25 @@ export function WorkspaceProvider({
   children,
 }: WorkspaceProviderProps) {
   const router = useRouter();
+  const { isLoaded, setActive } = useOrganizationList();
 
-  const switchWorkspace = (workspaceId: string) => {
+  const switchWorkspace = async (workspaceId: string) => {
     const target = workspaces.find((item) => item.id === workspaceId);
 
     if (!target || target.id === workspace.id) return;
 
-    // Dev-only bridge. Production switches the active Clerk organization.
-    document.cookie = `apalis_workspace=${target.plan.toLowerCase()}; path=/; max-age=31536000; samesite=lax`;
-    router.push("/dashboard/apps");
-    router.refresh();
+    if (!isLoaded || !setActive) {
+      toast.error("Workspace switching is still loading. Try again in a moment.");
+      return;
+    }
+
+    try {
+      await setActive({ organization: target.id });
+      router.push("/dashboard/apps");
+      router.refresh();
+    } catch {
+      toast.error(`Unable to switch to ${target.name}.`);
+    }
   };
 
   const value: WorkspaceContextValue = {
