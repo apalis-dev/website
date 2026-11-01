@@ -204,6 +204,7 @@ export async function createWorkspaceApp(
     context.organizationId,
     {
       publicMetadata: {
+        schemaVersion: nextMetadata.schemaVersion,
         apps: nextMetadata.apps,
       },
     }
@@ -249,6 +250,7 @@ export async function updateWorkspaceApp(
     context.organizationId,
     {
       publicMetadata: {
+        schemaVersion: nextMetadata.schemaVersion,
         apps: nextMetadata.apps,
       },
     }

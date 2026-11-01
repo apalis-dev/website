@@ -48,7 +48,20 @@ export function isWorkspaceMetadata(value: unknown): value is WorkspaceMetadata 
  * should validate before writing and surface an error rather than overwrite.
  */
 export function parseWorkspaceMetadata(value: unknown): WorkspaceMetadata {
-  const result = workspaceMetadataSchema.safeParse(value);
+  if (value == null) return emptyWorkspaceMetadata();
+
+  const record =
+    typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+
+  // Metadata written before schemaVersion was introduced is still valid at
+  // version 1. Without this, an app can exist in Clerk but be invisible here.
+  const result = workspaceMetadataSchema.safeParse({
+    ...record,
+    schemaVersion: record.schemaVersion ?? 1,
+    apps: record.apps ?? {},
+  });
 
   return result.success ? result.data : emptyWorkspaceMetadata();
 }
