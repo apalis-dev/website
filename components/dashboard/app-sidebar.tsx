@@ -76,7 +76,7 @@ function getInitials(name: string) {
 export function AppSidebar() {
   const pathname = usePathname() ?? "";
   const { user } = useUser();
-  const { workspace } = useWorkspace();
+  const { activeWorkspace } = useWorkspace();
 
   const name = user?.fullName ?? user?.username ?? "—";
   const email = user?.primaryEmailAddress?.emailAddress ?? "—";
@@ -146,7 +146,7 @@ export function AppSidebar() {
             <SidebarFooterDropdown
               name={name}
               email={email}
-              plan={workspace.plan}
+              plan={activeWorkspace.plan}
               avatarSrc={image}
               initials={initials}
             />

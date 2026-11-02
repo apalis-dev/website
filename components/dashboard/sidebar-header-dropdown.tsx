@@ -33,9 +33,9 @@ function getInitials(name: string) {
 
 export function SidebarHeaderDropdown() {
   const { state } = useSidebar();
-  const { workspace, workspaces, switchWorkspace } = useWorkspace();
+  const { activeWorkspace, workspaces, switchWorkspace } = useWorkspace();
   const collapsed = state === "collapsed";
-  const initials = getInitials(workspace.name);
+  const initials = getInitials(activeWorkspace.name);
 
   return (
     <DropdownMenu>
@@ -43,8 +43,11 @@ export function SidebarHeaderDropdown() {
         render={
           <button className="flex w-full items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <Avatar className="size-8 shrink-0">
-              {workspace.imageUrl && (
-                <AvatarImage src={workspace.imageUrl} alt={workspace.name} />
+              {activeWorkspace.imageUrl && (
+                <AvatarImage
+                  src={activeWorkspace.imageUrl}
+                  alt={activeWorkspace.name}
+                />
               )}
 
               <AvatarFallback>{initials}</AvatarFallback>
@@ -54,10 +57,10 @@ export function SidebarHeaderDropdown() {
               <>
                 <div className="min-w-0 flex-1 text-left">
                   <p className="truncate text-sm font-medium">
-                    {workspace.name}
+                    {activeWorkspace.name}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {workspace.plan} workspace
+                    {activeWorkspace.plan} workspace
                   </p>
                 </div>
 
@@ -77,7 +80,7 @@ export function SidebarHeaderDropdown() {
 
         <DropdownMenuGroup>
           {workspaces.map((item) => {
-            const isActive = item.id === workspace.id;
+            const isActive = item.id === activeWorkspace.id;
 
             return (
               <DropdownMenuItem

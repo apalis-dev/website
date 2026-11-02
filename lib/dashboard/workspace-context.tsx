@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useOrganizationList } from "@clerk/nextjs";
 import { toast } from "sonner";
@@ -17,12 +17,14 @@ import {
 
 interface WorkspaceContextValue {
   workspace: Workspace;
+  activeWorkspace: WorkspaceSummary;
   workspaces: WorkspaceSummary[];
   limits: WorkspaceLimits;
   remainingApps: number;
   remainingMembers: number;
   canCreateApp: boolean;
   canInviteMember: boolean;
+  switchingWorkspaceId: string | null;
   switchWorkspace: (workspaceId: string) => Promise<void>;
 }
 
@@ -41,6 +43,17 @@ export function WorkspaceProvider({
 }: WorkspaceProviderProps) {
   const router = useRouter();
   const { isLoaded, setActive } = useOrganizationList();
+  const [pendingWorkspaceId, setPendingWorkspaceId] = useState<string | null>(
+    null
+  );
+
+  // A switch is pending until the refreshed layout resolves the selected
+  // organization. No timers are needed: when the server workspace catches up,
+  // this derives back to the current server data automatically.
+  const switchingWorkspaceId =
+    pendingWorkspaceId && pendingWorkspaceId !== workspace.id
+      ? pendingWorkspaceId
+      : null;
 
   const switchWorkspace = async (workspaceId: string) => {
     const target = workspaces.find((item) => item.id === workspaceId);
@@ -52,23 +65,50 @@ export function WorkspaceProvider({
       return;
     }
 
+    if (switchingWorkspaceId && switchingWorkspaceId !== target.id) return;
+
+    setPendingWorkspaceId(target.id);
+
     try {
-      await setActive({ organization: target.id });
-      router.push("/dashboard/apps");
-      router.refresh();
+      await setActive({
+        organization: target.id,
+        navigate: ({ decorateUrl }) => {
+          // Clerk runs this callback after the active organization and session
+          // cookies are in sync, so the refresh reads the new workspace
+          // without forcing a full document reload.
+          let destination = decorateUrl("/dashboard/apps");
+
+          if (destination.startsWith("http")) {
+            const url = new URL(destination);
+            destination = `${url.pathname}${url.search}`;
+          }
+
+          router.push(destination);
+          router.refresh();
+        },
+      });
     } catch {
+      setPendingWorkspaceId(null);
       toast.error(`Unable to switch to ${target.name}.`);
     }
   };
 
+  // Reflect the chosen workspace in the shell immediately. The full
+  // `workspace` object stays server-resolved and is swapped in once the
+  // refresh lands.
+  const activeWorkspace: WorkspaceSummary =
+    workspaces.find((item) => item.id === switchingWorkspaceId) ?? workspace;
+
   const value: WorkspaceContextValue = {
     workspace,
+    activeWorkspace,
     workspaces,
     limits: getWorkspaceLimits(workspace.plan),
     remainingApps: getRemainingAppSlots(workspace),
     remainingMembers: getRemainingMemberSlots(workspace),
     canCreateApp: canCreateAppForWorkspace(workspace),
     canInviteMember: canInviteMemberForWorkspace(workspace),
+    switchingWorkspaceId,
     switchWorkspace,
   };
 

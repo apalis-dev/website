@@ -37,7 +37,10 @@ export default async function BillingPlansPage() {
         </div>
       </div>
 
-      <PricingTable for="organization" />
+      <PricingTable
+        for="organization"
+        newSubscriptionRedirectUrl="/dashboard/billing"
+      />
     </div>
   );
 }
