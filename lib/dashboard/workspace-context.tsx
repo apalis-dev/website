@@ -99,15 +99,27 @@ export function WorkspaceProvider({
   const activeWorkspace: WorkspaceSummary =
     workspaces.find((item) => item.id === switchingWorkspaceId) ?? workspace;
 
+  // Paid workspaces are capped by the seats purchased on the Clerk plan, not
+  // by the plan-wide maximum member count. Using the purchased seat quantity
+  // keeps the invite gate in sync with what Clerk will actually accept.
+  const purchasedMemberSeats =
+    workspace.subscription.plan === "Free" || workspace.subscription.seats === 0
+      ? getWorkspaceLimits(workspace.plan).includedSeats
+      : workspace.subscription.seats;
+  const remainingMemberSlots = Math.max(
+    0,
+    purchasedMemberSeats - workspace.members.length
+  );
+
   const value: WorkspaceContextValue = {
     workspace,
     activeWorkspace,
     workspaces,
     limits: getWorkspaceLimits(workspace.plan),
     remainingApps: getRemainingAppSlots(workspace),
-    remainingMembers: getRemainingMemberSlots(workspace),
+    remainingMembers: remainingMemberSlots,
     canCreateApp: canCreateAppForWorkspace(workspace),
-    canInviteMember: canInviteMemberForWorkspace(workspace),
+    canInviteMember: remainingMemberSlots > 0,
     switchingWorkspaceId,
     switchWorkspace,
   };

@@ -59,7 +59,10 @@ export function WorkspaceMembersCard() {
   const isAdmin =
     workspace.members.find((member) => member.id === userId)?.role ===
     "admin";
-  const memberLimit = getWorkspaceLimits(workspace.plan).maxMembers;
+  const memberLimit =
+    workspace.subscription.plan === "Free" || workspace.subscription.seats === 0
+      ? getWorkspaceLimits(workspace.plan).includedSeats
+      : workspace.subscription.seats;
 
   const handleInvite = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -91,6 +94,7 @@ export function WorkspaceMembersCard() {
       setInvitingError(
         getErrorMessage(inviteError, "We couldn't send this invitation.")
       );
+      toast.error(getErrorMessage(inviteError, "We couldn't send this invitation."));
     } finally {
       setInviting(false);
     }
