@@ -232,7 +232,12 @@ export default async function Page() {
               </div>
             </div>
 
-            <Button variant="outline" size="sm" render={<Link href="/dashboard/apps" />}>
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={<Link href="/dashboard/apps" />}
+            >
               View apps
             </Button>
           </div>
@@ -269,6 +274,8 @@ export default async function Page() {
               {canManageBilling && (
                 <Button
                   variant="outline"
+                  size="sm"
+                  nativeButton={false}
                   render={<Link href="/dashboard/billing/plans" />}
                 >
                   Change plan

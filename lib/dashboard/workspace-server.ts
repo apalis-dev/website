@@ -177,9 +177,14 @@ function buildSubscription(
   // `nextPayment.totals.grandTotal` includes per-seat and per-unit charges.
   // The item/plan `amount` is only the base fee, so using it understates an
   // Enterprise invoice by the seat total.
-  const grandTotal = nextPayment?.totals?.grandTotal ?? nextPayment?.amount;
+  const grandTotal =
+    nextPayment?.totals?.grandTotal ??
+    nextPayment?.amount ??
+    item.amount ??
+    item.plan?.fee ??
+    null;
+  const amount = grandTotal?.amount ?? 0;
   const baseFee = nextPayment?.totals?.baseFee ?? item.plan?.fee;
-  const amount = grandTotal?.amount ?? item.amount?.amount ?? 0;
   const baseAmount = baseFee?.amount;
   const seatAmount =
     baseAmount != null && amount > baseAmount ? amount - baseAmount : 0;
