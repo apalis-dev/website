@@ -9,6 +9,7 @@ import { DangerZoneCard } from "./settings/danger-zone-card";
 import { ProfileCard } from "./settings/profile-card";
 import { SecurityCard } from "./settings/security-card";
 import { WorkspaceDangerZoneCard } from "./settings/workspace-danger-zone-card";
+import { WorkspaceMembersCard } from "./settings/workspace-members-card";
 
 export function SettingsContent() {
   const { isLoaded, user } = useUser();
@@ -32,6 +33,7 @@ export function SettingsContent() {
       <ProfileCard user={user} />
       <ApiKeysCard />
       <SecurityCard user={user} />
+      <WorkspaceMembersCard />
       <WorkspaceDangerZoneCard />
       <DangerZoneCard user={user} />
     </div>
