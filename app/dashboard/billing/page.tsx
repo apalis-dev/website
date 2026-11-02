@@ -51,6 +51,13 @@ export default async function Page() {
     isPaid &&
     subscription.status !== "non-renewing" &&
     subscription.status !== "cancelled";
+  const hasSeatCharges =
+    isPaid &&
+    subscription.seatAmount != null &&
+    subscription.seatAmount > 0 &&
+    subscription.baseAmount != null;
+  const formatAmount = (amount: number) =>
+    `${subscription.currency} ${(amount / 100).toFixed(2)}`;
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -68,8 +75,18 @@ export default async function Page() {
             <CardTitle className="text-2xl">{workspace.plan}</CardTitle>
           </CardHeader>
           <CardContent>
-            <Badge variant={isPaid ? "success" : "secondary"}>
-              {isPaid ? "Active" : "Free"}
+            <Badge
+              variant={
+                !isPaid
+                  ? "secondary"
+                  : subscription.status === "active"
+                    ? "success"
+                    : subscription.status === "non-renewing"
+                      ? "secondary"
+                      : "destructive"
+              }
+            >
+              {isPaid ? subscription.status : "Free"}
             </Badge>
           </CardContent>
         </Card>
@@ -78,12 +95,10 @@ export default async function Page() {
           <CardHeader>
             <CardDescription>Workspace Spend</CardDescription>
             <CardTitle className="text-2xl">
-              {isPaid
-                ? `${subscription.currency} ${(subscription.amount / 100).toFixed(2)}`
-                : "—"}
+              {isPaid ? formatAmount(subscription.amount) : "—"}
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-1">
             <p className="text-sm text-muted-foreground">
               {isPaid
                 ? `Billed per ${interval} for ${subscription.seats} seat${
@@ -91,6 +106,13 @@ export default async function Page() {
                   }`
                 : "Upgrade to unlock more apps"}
             </p>
+
+            {hasSeatCharges && (
+              <p className="text-xs text-muted-foreground">
+                {formatAmount(subscription.baseAmount!)} base +{" "}
+                {formatAmount(subscription.seatAmount!)} seats
+              </p>
+            )}
           </CardContent>
         </Card>
 

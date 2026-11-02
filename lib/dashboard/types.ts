@@ -45,6 +45,8 @@ export interface WorkspaceSubscription {
   status: SubscriptionStatus;
   seats: number;
   amount: number;
+  baseAmount?: number;
+  seatAmount?: number;
   currency: string;
   interval: "monthly" | "yearly";
   nextBillingDate: string | null;

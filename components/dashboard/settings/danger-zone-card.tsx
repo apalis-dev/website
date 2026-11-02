@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useReverification } from "@clerk/nextjs";
+import { useClerk, useReverification } from "@clerk/nextjs";
 import { Loader2Icon, Trash2Icon } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import { deleteAccountAction } from "@/app/dashboard/settings/actions";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,26 +22,19 @@ interface DangerZoneCardProps {
 }
 
 export function DangerZoneCard({ user }: DangerZoneCardProps) {
-  const router = useRouter();
+  const { signOut } = useClerk();
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const deleteAccount = useReverification(async () => {
-    const cancelResponse = await fetch("/api/billing/cancel", {
-      method: "POST",
-    });
+    const result = await deleteAccountAction();
 
-    if (!cancelResponse.ok && cancelResponse.status !== 400) {
-      const payload = await cancelResponse.json().catch(() => null);
-
-      throw new Error(
-        payload?.error ??
-          "Cancel your active subscription before deleting your account."
-      );
+    if (!result.ok) {
+      throw new Error(result.error);
     }
 
-    await user.delete();
+    toast.success("Your account has been deleted");
   });
 
   const handleDeleteAccount = async () => {
@@ -50,9 +43,10 @@ export function DangerZoneCard({ user }: DangerZoneCardProps) {
 
     try {
       await deleteAccount();
-      toast.success("Your account has been deleted");
-      router.push("/login");
-      router.refresh()
+
+      // The user no longer exists, so clear the stale client session and
+      // return to the sign-in page.
+      await signOut({ redirectUrl: "/login" });
     } catch (deleteError) {
       setError(
         getErrorMessage(deleteError, "We couldn't delete your account.")
@@ -72,8 +66,8 @@ export function DangerZoneCard({ user }: DangerZoneCardProps) {
           <div>
             <p className="font-medium">Delete account</p>
             <p className="text-sm text-muted-foreground">
-              Permanently delete your account and profile. We&apos;ll cancel an
-              active subscription first.
+              Permanently delete your account and profile. Workspaces and their
+              subscriptions are not deleted automatically.
             </p>
           </div>
 
@@ -96,8 +90,8 @@ export function DangerZoneCard({ user }: DangerZoneCardProps) {
               <span className="font-medium">
                 {user.primaryEmailAddress?.emailAddress}
               </span>
-              . Any active subscription will be cancelled first. This cannot be
-              undone.
+              . You must not be the last admin of a workspace with other
+              members. This cannot be undone.
             </p>
 
             {error && (

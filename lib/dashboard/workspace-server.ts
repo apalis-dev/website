@@ -21,7 +21,6 @@ import {
   toDashboardApp,
 } from "@/lib/workspace/metadata";
 import {
-  isKnownPlanSlug,
   mapSubscriptionStatus,
   resolveWorkspacePlan,
 } from "@/lib/workspace/plan";
@@ -38,22 +37,42 @@ interface BillingPlanLike {
   fee?: BillingMoneyLike | null;
 }
 
+interface BillingSeatLike {
+  quantity?: number | null;
+  tiers?: readonly {
+    quantity?: number | null;
+    total?: BillingMoneyLike | null;
+    feePerBlock?: BillingMoneyLike | null;
+  }[];
+}
+
+interface BillingNextPaymentLike {
+  date?: number;
+  amount?: BillingMoneyLike | null;
+  totals?: {
+    subtotal?: BillingMoneyLike | null;
+    baseFee?: BillingMoneyLike | null;
+    grandTotal?: BillingMoneyLike | null;
+  } | null;
+}
+
 interface BillingItemLike {
   status?: string;
   planPeriod?: "month" | "annual";
   plan?: BillingPlanLike | null;
   amount?: BillingMoneyLike | null;
-  seats?: { quantity?: number | null } | null;
+  seats?: BillingSeatLike | null;
   periodEnd?: number | null;
   canceledAt?: number | null;
-  nextPayment?: { date?: number } | null;
+  isFreeTrial?: boolean;
+  nextPayment?: BillingNextPaymentLike | null;
 }
 
 interface BillingSubscriptionLike {
   id?: string;
   status?: string;
   subscriptionItems?: readonly BillingItemLike[];
-  nextPayment?: { date?: number } | null;
+  nextPayment?: BillingNextPaymentLike | null;
 }
 
 const MEMBERSHIP_PAGE_LIMIT = 100;
@@ -63,22 +82,41 @@ function toIsoDate(timestamp: number | null | undefined): string | null {
   return new Date(timestamp).toISOString().slice(0, 10);
 }
 
+/**
+ * A subscription item only grants paid entitlements while it is actually in
+ * force. Clerk keeps ended/canceled items in the subscription history and adds
+ * an upcoming Free item when a paid plan is set to end, so reading the first
+ * item (or the default Free item) would keep a canceled workspace on Pro.
+ */
+function isEntitledItem(item: BillingItemLike): boolean {
+  return item.status === "active" || item.status === "past_due";
+}
+
+function getPlanFromItem(item: BillingItemLike): WorkspacePlan {
+  return resolveWorkspacePlan({
+    slug: item.plan?.slug,
+    name: item.plan?.name,
+  });
+}
+
 function getPrimarySubscriptionItem(
   subscription: BillingSubscriptionLike | null
 ): BillingItemLike | null {
   if (!subscription) return null;
 
-  const items = subscription.subscriptionItems ?? [];
-  const knownPlans = items.filter((item) =>
-    isKnownPlanSlug(item.plan?.slug)
+  const entitledItems = (subscription.subscriptionItems ?? []).filter(
+    isEntitledItem
   );
-  const candidates = knownPlans.length > 0 ? knownPlans : items;
-  const primary =
-    candidates.find((item) => item.plan?.isDefault) ??
-    candidates.find((item) => item.status === "active") ??
-    candidates[0];
 
-  return primary ?? null;
+  if (entitledItems.length === 0) return null;
+
+  // Prefer a paid item when both a paid plan and its upcoming Free fallback
+  // are present in the same subscription.
+  const paidItems = entitledItems.filter(
+    (item) => getPlanFromItem(item) !== "Free"
+  );
+
+  return paidItems[0] ?? entitledItems[0] ?? null;
 }
 
 function getPlanFromSubscription(
@@ -88,10 +126,7 @@ function getPlanFromSubscription(
 
   if (!item) return "Free";
 
-  return resolveWorkspacePlan({
-    slug: item.plan?.slug,
-    name: item.plan?.name,
-  });
+  return getPlanFromItem(item);
 }
 
 function buildSubscription(
@@ -132,21 +167,33 @@ function buildSubscription(
   const seats =
     item.seats?.quantity ??
     (plan === "Enterprise" ? Math.max(memberCount, 1) : 1);
+  const nextPayment = subscription.nextPayment ?? item.nextPayment ?? null;
   const nextPaymentDate =
-    subscription.nextPayment?.date ??
-    item.nextPayment?.date ??
-    item.periodEnd;
+    nextPayment?.date ?? item.nextPayment?.date ?? item.periodEnd;
   const status: WorkspaceSubscription["status"] = item.canceledAt
     ? "non-renewing"
     : mapSubscriptionStatus(subscription.status);
+
+  // `nextPayment.totals.grandTotal` includes per-seat and per-unit charges.
+  // The item/plan `amount` is only the base fee, so using it understates an
+  // Enterprise invoice by the seat total.
+  const grandTotal = nextPayment?.totals?.grandTotal ?? nextPayment?.amount;
+  const baseFee = nextPayment?.totals?.baseFee ?? item.plan?.fee;
+  const amount = grandTotal?.amount ?? item.amount?.amount ?? 0;
+  const baseAmount = baseFee?.amount;
+  const seatAmount =
+    baseAmount != null && amount > baseAmount ? amount - baseAmount : 0;
 
   return {
     orgId,
     plan,
     status,
     seats,
-    amount: item.amount?.amount ?? item.plan?.fee?.amount ?? 0,
-    currency: item.amount?.currency || item.plan?.fee?.currency || "USD",
+    amount,
+    baseAmount,
+    seatAmount,
+    currency:
+      grandTotal?.currency || item.amount?.currency || baseFee?.currency || "USD",
     interval: item.planPeriod === "annual" ? "yearly" : "monthly",
     nextBillingDate: toIsoDate(nextPaymentDate),
     clerkSubscriptionId: subscription.id,
