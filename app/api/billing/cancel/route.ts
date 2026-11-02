@@ -1,41 +1,94 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
+import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
 import { NextResponse } from "next/server";
-
-import { disableSubscription } from "@/lib/billing/paystack";
-import { getBillingSummary, updateSubscriptionStatus } from "@/lib/billing/store";
 
 export const runtime = "nodejs";
 
+/**
+ * Cancels the active workspace subscription at the end of the current billing
+ * period. Clerk remains the source of truth; the UI re-reads the subscription
+ * after this call instead of keeping local billing state.
+ */
 export async function POST() {
-  const { userId } = await auth();
+  const { userId, orgId, orgRole } = await auth();
 
   if (!userId) {
-    return NextResponse.json({ error: "Please sign in to continue." }, { status: 401 });
-  }
-
-  const { subscription } = getBillingSummary(userId);
-
-  if (!subscription || subscription.status !== "active") {
-    return NextResponse.json({ error: "There is no active subscription to cancel." }, { status: 400 });
-  }
-
-  if (!subscription.paystackSubscriptionCode || !subscription.paystackEmailToken) {
     return NextResponse.json(
-      { error: "This subscription cannot be cancelled automatically yet. Contact support." },
+      { error: "Please sign in to continue." },
+      { status: 401 }
+    );
+  }
+
+  if (!orgId) {
+    return NextResponse.json(
+      { error: "Choose a workspace before managing billing." },
+      { status: 400 }
+    );
+  }
+
+  if (orgRole !== "org:admin" && orgRole !== "org:owner") {
+    return NextResponse.json(
+      { error: "Only workspace admins can cancel the subscription." },
+      { status: 403 }
+    );
+  }
+
+  const client = await clerkClient();
+
+  let subscription;
+
+  try {
+    subscription = await client.billing.getOrganizationBillingSubscription(
+      orgId
+    );
+  } catch (error) {
+    if (isClerkAPIResponseError(error) && error.status === 404) {
+      return NextResponse.json(
+        { error: "This workspace does not have an active subscription." },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "We couldn't load this workspace's subscription." },
+      { status: 502 }
+    );
+  }
+
+  const item = subscription.subscriptionItems.find(
+    (subscriptionItem) =>
+      subscriptionItem.status === "active" && !subscriptionItem.canceledAt
+  );
+
+  if (!item) {
+    return NextResponse.json(
+      { error: "This subscription is already set to end." },
       { status: 409 }
     );
   }
 
   try {
-    await disableSubscription({
-      subscriptionCode: subscription.paystackSubscriptionCode,
-      emailToken: subscription.paystackEmailToken,
+    const cancelled = await client.billing.cancelSubscriptionItem(item.id, {
+      endNow: false,
     });
-    updateSubscriptionStatus(userId, "non-renewing");
 
-    return NextResponse.json({ status: "non-renewing" });
+    return NextResponse.json({
+      status: "non-renewing",
+      endsAt: cancelled.periodEnd
+        ? new Date(cancelled.periodEnd).toISOString()
+        : null,
+    });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to cancel subscription.";
-    return NextResponse.json({ error: message }, { status: 502 });
+    if (isClerkAPIResponseError(error)) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status ?? 502 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "We couldn't cancel this subscription. Try again." },
+      { status: 502 }
+    );
   }
 }

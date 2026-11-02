@@ -45,6 +45,7 @@ interface BillingItemLike {
   amount?: BillingMoneyLike | null;
   seats?: { quantity?: number | null } | null;
   periodEnd?: number | null;
+  canceledAt?: number | null;
   nextPayment?: { date?: number } | null;
 }
 
@@ -135,11 +136,14 @@ function buildSubscription(
     subscription.nextPayment?.date ??
     item.nextPayment?.date ??
     item.periodEnd;
+  const status: WorkspaceSubscription["status"] = item.canceledAt
+    ? "non-renewing"
+    : mapSubscriptionStatus(subscription.status);
 
   return {
     orgId,
     plan,
-    status: mapSubscriptionStatus(subscription.status),
+    status,
     seats,
     amount: item.amount?.amount ?? item.plan?.fee?.amount ?? 0,
     currency: item.amount?.currency || item.plan?.fee?.currency || "USD",

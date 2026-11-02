@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { auth } from "@clerk/nextjs/server";
 import {
   Building2Icon,
   CreditCardIcon,
@@ -9,6 +10,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CancelSubscriptionButton } from "@/components/dashboard/cancel-subscription-button";
 import {
   Card,
   CardContent,
@@ -35,11 +37,20 @@ import { isPaidPlan } from "@/lib/workspace/plan";
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const workspace = await getDashboardWorkspace();
+  const [{ orgRole }, workspace] = await Promise.all([
+    auth(),
+    getDashboardWorkspace(),
+  ]);
   const limits = getWorkspaceLimits(workspace.plan);
   const subscription = workspace.subscription;
   const isPaid = isPaidPlan(workspace.plan);
   const interval = subscription.interval === "yearly" ? "year" : "month";
+  const canManageBilling = orgRole === "org:admin" || orgRole === "org:owner";
+  const canCancel =
+    canManageBilling &&
+    isPaid &&
+    subscription.status !== "non-renewing" &&
+    subscription.status !== "cancelled";
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -134,8 +145,18 @@ export default async function Page() {
               </div>
             </div>
 
-            <Badge variant={isPaid ? "success" : "secondary"}>
-              {subscription.status}
+            <Badge
+              variant={
+                !isPaid
+                  ? "secondary"
+                  : subscription.status === "active"
+                    ? "success"
+                    : subscription.status === "non-renewing"
+                      ? "secondary"
+                      : "destructive"
+              }
+            >
+              {isPaid ? subscription.status : "Free"}
             </Badge>
           </div>
 
@@ -178,7 +199,11 @@ export default async function Page() {
             <div className="flex items-center gap-2">
               <ReceiptIcon className="size-4 text-muted-foreground" />
               <div>
-                <p className="font-medium">Next invoice</p>
+                <p className="font-medium">
+                  {subscription.status === "non-renewing"
+                    ? "Access until"
+                    : "Next invoice"}
+                </p>
                 <p className="text-sm text-muted-foreground">
                   {subscription.nextBillingDate ?? "No renewal"}
                 </p>
@@ -194,7 +219,7 @@ export default async function Page() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Clerk Billing</CardTitle>
+          <CardTitle>Manage subscription</CardTitle>
           <CardDescription>
             Clerk Billing is the source of truth for this workspace&apos;s plan
             and subscription.
@@ -202,18 +227,34 @@ export default async function Page() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4 rounded-lg border border-dashed p-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted-foreground">
-              Subscription state is read from Clerk. Use the plan picker to
-              upgrade or change this workspace&apos;s plan. Invoices and
-              payment-method management are not wired into this page yet.
-            </p>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">
+                {subscription.status === "non-renewing"
+                  ? `This subscription ends on ${
+                      subscription.nextBillingDate ?? "the current period end"
+                    }. You keep access until then.`
+                  : "Change the workspace plan or stop the subscription from renewing. Invoices and payment-method management are not wired into this page yet."}
+              </p>
 
-            <Button
-              variant="outline"
-              render={<Link href="/dashboard/billing/plans" />}
-            >
-              Change plan
-            </Button>
+              {!canManageBilling && (
+                <p className="text-sm text-muted-foreground">
+                  Only workspace admins can change billing.
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {canManageBilling && (
+                <Button
+                  variant="outline"
+                  render={<Link href="/dashboard/billing/plans" />}
+                >
+                  Change plan
+                </Button>
+              )}
+
+              {canCancel && <CancelSubscriptionButton />}
+            </div>
           </div>
         </CardContent>
       </Card>
