@@ -46,7 +46,7 @@ export const Navigation: FC<{ className?: string }> = ({
     <aside
       className={`flex-none sticky top-32 sm:top-40 mb-16 flex flex-col w-60 z-20 -ml-4 ${className}`}
     >
-      <div className="absolute left-0 bottom-0 -top-16 w-px bg-gradient-to-b from-zinc-300/0 via-zinc-300 to-zinc-300/0 dark:from-zinc-600/0 dark:via-zinc-600 dark:to-zinc-600/0" />
+      <div className="absolute left-0 bottom-0 -top-16 w-px bg-linear-to-b from-zinc-300/0 via-zinc-300 to-zinc-300/0 dark:from-zinc-600/0 dark:via-zinc-600 dark:to-zinc-600/0" />
       <Search className="shrink-0 w-56 ml-4" />
       <ul
         className="relative w-64 grow overflow-y-auto py-9 text-sm"
@@ -56,7 +56,7 @@ export const Navigation: FC<{ className?: string }> = ({
           <NavigationLink key={index} level={0} element={element} />
         ))}
       </ul>
-      <div className="absolute left-px top-8 h-9 w-full bg-gradient-to-b from-white dark:from-[#09090B]" />
+      <div className="absolute left-px top-8 h-9 w-full bg-linear-to-b from-white dark:from-[#09090B]" />
     </aside>
   )
 }

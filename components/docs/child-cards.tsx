@@ -23,7 +23,7 @@ export const ChildCards: FC<{ path: string }> = ({ path }) => {
         <Link
           href={urlPath}
           key={index}
-          className="bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 rounded-sm p-6"
+          className="bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 rounded-sm p-6"
         >
           <h3 className="font-display text-xl text-black dark:text-white">
             {title}

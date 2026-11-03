@@ -22,7 +22,7 @@ export default function Blog() {
   return (
     <>
       <Navigation />
-      <main className="docs-container relative w-full max-w-screen-2xl mx-auto px-4 sm:px-8 lg:px-16 pb-24 pt-32 sm:pt-40 min-h-screen">
+      <main className="docs-container relative w-full max-w-(--breakpoint-2xl) mx-auto px-4 sm:px-8 lg:px-16 pb-24 pt-32 sm:pt-40 min-h-screen">
         <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl text-black dark:text-white">
           {content.heading}
         </h2>
@@ -33,7 +33,7 @@ export default function Blog() {
               <Link
                 href={urlPath}
                 key={index}
-                className="bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 rounded-sm p-6 generic-hover"
+                className="bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-800 dark:to-zinc-900 rounded-sm p-6 generic-hover"
               >
                 <div className="flex items-start justify-between">
                   <h3 className="font-display text-2xl text-black dark:text-white">

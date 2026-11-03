@@ -54,15 +54,15 @@ export const Search: FC<{ className?: string }> = ({ className = "" }) => {
     <>
       <button
         onClick={() => setOpen(true)}
-        className={`h-8 bg-gradient-to-br from-zinc-200 to-zinc-300 dark:from-zinc-600 dark:to-zinc-900 hover:text-black hover:dark:text-white rounded-sm p-px focus:outline-none ${className}`}
+        className={`h-8 bg-linear-to-br from-zinc-200 to-zinc-300 dark:from-zinc-600 dark:to-zinc-900 hover:text-black hover:dark:text-white rounded-sm p-px focus:outline-none ${className}`}
       >
-        <div className="flex items-center gap-2 pr-1 pl-3 bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-800 dark:to-zinc-950 h-full rounded-sm">
+        <div className="flex items-center gap-2 pr-1 pl-3 bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-800 dark:to-zinc-950 h-full rounded-sm">
           <Icon
             name="search"
             className="h-4 shrink-0 text-black dark:text-white"
           />
           <div className="grow text-left">Search Docs...</div>
-          <div className="shrink-0 p-px bg-gradient-to-b from-zinc-300 to-zinc-400 dark:from-zinc-400 dark:to-zinc-600 rounded-sm">
+          <div className="shrink-0 p-px bg-linear-to-b from-zinc-300 to-zinc-400 dark:from-zinc-400 dark:to-zinc-600 rounded-sm">
             <div className="bg-zinc-200 dark:bg-zinc-700 text-xs text-black dark:text-white px-1 py-0.5 rounded-sm">
               ⌘K
             </div>
@@ -73,7 +73,7 @@ export const Search: FC<{ className?: string }> = ({ className = "" }) => {
         <div className="fixed left-0 top-0 w-screen h-screen z-50 bg-white/70 dark:bg-[#09090B]/70 backdrop-blur px-4 sm:px-8">
           <div className="absolute inset-0" onClick={() => setOpen(false)} />
           <div
-            className="relative mt-24 w-full max-w-3xl mx-auto bg-gradient-to-br from-zinc-200 to-zinc-200 dark:from-zinc-600 dark:to-zinc-900 p-px rounded-sm"
+            className="relative mt-24 w-full max-w-3xl mx-auto bg-linear-to-br from-zinc-200 to-zinc-200 dark:from-zinc-600 dark:to-zinc-900 p-px rounded-sm"
             style={{ height: "calc(100vh - 12rem)", maxHeight: "32rem" }}
           >
             <div className="h-full w-full bg-zinc-50 dark:bg-zinc-900 flex flex-col rounded-sm overflow-hidden">
@@ -84,7 +84,7 @@ export const Search: FC<{ className?: string }> = ({ className = "" }) => {
                 <div className="flex items-center p-4 border-b border-zinc-200 dark:border-zinc-800">
                   <Icon name="search" className="shrink-0 h-4" />
                   <SearchBox placeholder="Search Docs..." />
-                  <div className="shrink-0 p-px bg-gradient-to-b from-zinc-300 to-zinc-400 dark:from-zinc-400 dark:to-zinc-600 rounded-sm">
+                  <div className="shrink-0 p-px bg-linear-to-b from-zinc-300 to-zinc-400 dark:from-zinc-400 dark:to-zinc-600 rounded-sm">
                     <div className="bg-zinc-200 dark:bg-zinc-700 text-xs text-black dark:text-white px-1 py-0.5 rounded-sm">
                       ESC
                     </div>
@@ -140,7 +140,7 @@ const Hits = (props: any) => {
                     className="font-normal text-black dark:font-light dark:text-white"
                   />
                 </div>
-                <div className="!leading-none !mt-1">
+                <div className="leading-none! mt-1!">
                   <Snippet
                     hit={hit}
                     attribute="content"
