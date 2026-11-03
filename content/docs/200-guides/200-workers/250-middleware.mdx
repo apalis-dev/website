@@ -26,23 +26,23 @@ They are applied as layers around your job handlers, similar to HTTP middleware 
 
 | Middleware | Description |
 |------------|-------------|
-| [`option_layer`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.option_layer) | Conditionally applies a middleware layer if `Some`, otherwise skips it. Useful for feature flags or runtime configuration. |
-| [`layer_fn`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.layer_fn) | Wraps a function into a Tower `Layer`, allowing quick custom middleware without defining a full type. |
-| [`concurrency`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.concurrency) | Limits the maximum number of in-flight requests being processed concurrently. |
-| [`rate_limit`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.rate_limit) | Restricts the number of requests allowed within a specified time duration. |
-| [`retry`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.retry) | Automatically retries failed requests using a provided retry policy. |
-| [`timeout`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.timeout) | Fails requests that take longer than the specified duration. |
-| [`filter`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.filter) | Rejects requests synchronously based on a predicate function. |
-| [`filter_async`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.filter_async) | Rejects requests asynchronously using an async predicate. |
-| [`map_request`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.map_request) | Transforms incoming request types before they reach the service. |
-| [`map_response`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.map_response) | Transforms responses returned by the service. |
-| [`map_err`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.map_err) | Maps errors produced by the service into another type. |
-| [`map_future`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.map_future) | Transforms the future returned by the service before it is awaited. |
-| [`then`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.then) | Executes an async function after the service completes, regardless of success or failure. |
-| [`and_then`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.and_then) | Chains another async computation that only runs if the service succeeds. |
-| [`map_result`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.map_result) | Maps the full result (`Result<T, E>`) into another value, regardless of outcome. |
-| [`catch_panic`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.catch_panic) | Catches panics during execution and converts them into errors. |
-| [`enable_tracing`](https://docs.rs/apalis/1.0.0-rc.7/apalis/layers/trait.WorkerBuilderExt.html#tymethod.enable_tracing) | Adds tracing instrumentation using the `tracing` crate for observability. |
+| [`option_layer`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.option_layer) | Conditionally applies a middleware layer if `Some`, otherwise skips it. Useful for feature flags or runtime configuration. |
+| [`layer_fn`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.layer_fn) | Wraps a function into a Tower `Layer`, allowing quick custom middleware without defining a full type. |
+| [`concurrency`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.concurrency) | Limits the maximum number of in-flight requests being processed concurrently. |
+| [`rate_limit`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.rate_limit) | Restricts the number of requests allowed within a specified time duration. |
+| [`retry`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.retry) | Automatically retries failed requests using a provided retry policy. |
+| [`timeout`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.timeout) | Fails requests that take longer than the specified duration. |
+| [`filter`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.filter) | Rejects requests synchronously based on a predicate function. |
+| [`filter_async`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.filter_async) | Rejects requests asynchronously using an async predicate. |
+| [`map_request`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.map_request) | Transforms incoming request types before they reach the service. |
+| [`map_response`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.map_response) | Transforms responses returned by the service. |
+| [`map_err`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.map_err) | Maps errors produced by the service into another type. |
+| [`map_future`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.map_future) | Transforms the future returned by the service before it is awaited. |
+| [`then`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.then) | Executes an async function after the service completes, regardless of success or failure. |
+| [`and_then`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.and_then) | Chains another async computation that only runs if the service succeeds. |
+| [`map_result`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.map_result) | Maps the full result (`Result<T, E>`) into another value, regardless of outcome. |
+| [`catch_panic`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.catch_panic) | Catches panics during execution and converts them into errors. |
+| [`enable_tracing`](https://docs.rs/apalis/1.0.0/apalis/layers/trait.WorkerBuilderExt.html#tymethod.enable_tracing) | Adds tracing instrumentation using the `tracing` crate for observability. |
 
 ---
 
@@ -215,15 +215,15 @@ async fn main() {
     #[derive(Debug, Clone)]
     struct MyAcknowledger;
 
-    impl<Ctx: Debug, IdType: Debug> Acknowledge<(), Ctx, IdType> for MyAcknowledger {
+    impl Acknowledge<()> for MyAcknowledger {
         type Error = SendError<()>;
         type Future = BoxFuture<'static, Result<(), Self::Error>>;
         fn ack(
             &mut self,
             res: &Result<(), BoxDynError>,
-            parts: &Parts<Ctx, IdType>,
+            ctx: &ExecutionContext,
         ) -> Self::Future {
-            println!("{res:?}, {parts:?}");
+            println!("{res:?}, {ctx:?}");
             ready(Ok(())).boxed()
         }
     }

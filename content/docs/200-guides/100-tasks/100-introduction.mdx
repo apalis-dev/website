@@ -6,12 +6,12 @@ bottomNavigation: pagination
 ---
 
 Apalis provides flexible ways to define task handlers that process your background tasks. 
-You can pass in any type that implements [`IntoWorkerService`](https://docs.rs/apalis-core/1.0.0-rc.7/apalis_core/worker/builder/trait.IntoWorkerService.html) such as:
+You can pass in any type that implements [`IntoWorkerService`](https://docs.rs/apalis-core/1.0.0/apalis_core/worker/builder/trait.IntoWorkerService.html) such as:
 
 1. Async functions with dependency injection
 2. A type that implements [`tower::Service`]((https://docs.rs/tower-service/latest/tower_service/trait.Service.html)) trait implementation.
 3. Workflow: [Sequential workflows](/docs/guides/workflows/sequential-workflow)
-4. DagFlow: [DAG workflows](/docs/guides/workflows/dag-workflow)
+4. GraphFlow: [DAG workflows](/docs/guides/workflows/dag-workflow)
 
 All workflows accept are a representation of multiple services which can accept async functions or tower services.
 We will discuss these with the knowledge that the same knowledge holds for workflows.
@@ -57,7 +57,7 @@ async fn complex_handler(
     // The worker context for the worker that is running
     worker: WorkerContext,
     // The task_id
-    task_id: TaskId<RandomId>
+    task_id: TaskId
 ) -> Result<(), BoxDynError> {
     // Your task logic here
     Ok(())
@@ -94,10 +94,7 @@ impl EmailService {
     }
 }
 
-impl<Ctx> Service<Task<Email, Ctx, RandomId>> for EmailService 
-where
-    Ctx: Send + 'static,
-{
+impl Service<Task<Email>> for EmailService {
     type Response = ();
     type Error = BoxDynError;
     type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
@@ -106,7 +103,7 @@ where
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: Task<Email, Ctx, RandomId>) -> Self::Future {
+    fn call(&mut self, req: Task<Email>) -> Self::Future {
         let state = self.state.clone();
         
         Box::pin(async move {
@@ -146,7 +143,7 @@ To debug this issue, it is recommended to use `IntoWorkerService` to direct you 
 ```rs
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let mut backend = PostgresStorage::new_with_notify(&pool, &Config::default());
+    let mut backend = PostgresStorage::new(&pool).with_pubsub();
     IntoWorkerService::into_service(handle_task, backend);
 }
 ```

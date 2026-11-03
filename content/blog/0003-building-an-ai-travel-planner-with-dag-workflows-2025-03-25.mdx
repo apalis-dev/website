@@ -1,6 +1,6 @@
 ---
 title: Building an AI Travel Planner with DAG Workflows
-excerpt: Learn how to orchestrate parallel AI agents in Apalis using DagFlow — fetching itineraries, visa requirements, hotels, and flights concurrently, then merging everything into a single travel report.
+excerpt: Learn how to orchestrate parallel AI agents in Apalis using GraphFlow — fetching itineraries, visa requirements, hotels, and flights concurrently, then merging everything into a single travel report.
 date: 2026-03-25
 authors:
   - name: Njuguna Mureithi
@@ -16,7 +16,7 @@ Background jobs are often thought of as simple fire-and-forget tasks — send an
 In this tutorial we will build an AI-powered travel planner that takes an origin and destination as input, fans out across four independent AI agents running in parallel — itinerary planning, visa and vaccine requirements, hotel recommendations, and flight search — and then merges all four results into a single markdown travel report. Every agent runs concurrently. None of them wait for the others. The merge step runs only when all four are done.
 
 
-The result is a real-world demonstration of `DagFlow` that goes well beyond toy examples.
+The result is a real-world demonstration of `GraphFlow` that goes well beyond toy examples.
 
 ---
 
@@ -76,7 +76,7 @@ pub struct TripRequest {
 
 ## The Four Parallel Nodes
 
-Each node is a plain async function. They all share the same signature shape — receive a `TripRequest`, call an AI agent, return a `String`. Because they share no state and depend on no other node, `DagFlow` will run all four simultaneously.
+Each node is a plain async function. They all share the same signature shape — receive a `TripRequest`, call an AI agent, return a `String`. Because they share no state and depend on no other node, `GraphFlow` will run all four simultaneously.
 
 ### Node 1 — Build an Itinerary
 ```rust
@@ -211,11 +211,11 @@ pub async fn generate_report(
 
 ## Wiring the DAG
 
-Now we connect everything. This is the part where the value of `DagFlow` becomes clear — declaring what depends on what, validating the graph, and handing it to a standard `WorkerBuilder`:
+Now we connect everything. This is the part where the value of `GraphFlow` becomes clear — declaring what depends on what, validating the graph, and handing it to a standard `WorkerBuilder`:
 ```rust
 use apalis::prelude::*;
 use apalis_file_storage::JsonStorage;
-use apalis_workflow::{DagFlow, WorkflowSink};
+use apalis_workflow::{GraphFlow, WorkflowSink};
 use tracing::info;
 
 #[tokio::main]
@@ -239,16 +239,16 @@ async fn main() -> Result<(), BoxDynError> {
         .await?;
 
     // 3. Declare the DAG.
-    let dag = DagFlow::new("travel-planner");
+    let dag = GraphFlow::new("travel-planner");
 
-    let itinerary    = dag.node(build_itinerary);
-    let requirements = dag.node(find_requirements);
-    let hotels       = dag.node(find_hotels);
-    let flights      = dag.node(find_flights);
+    let itinerary    = dag.add_task(build_itinerary);
+    let requirements = dag.add_task(find_requirements);
+    let hotels       = dag.add_task(find_hotels);
+    let flights      = dag.add_task(find_flights);
 
     // The collector depends on all four — order here must match
     // the tuple in generate_report's signature.
-    dag.node(generate_report)
+    dag.add_task(generate_report)
         .depends_on((&itinerary, &requirements, &hotels, &flights));
 
     // 4. Validate before running — catches cycles and missing dependencies.

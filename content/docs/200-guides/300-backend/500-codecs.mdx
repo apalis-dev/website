@@ -1,16 +1,17 @@
 ---
 title: Codecs
-excerpt: Learn how Apalis codecs work — encoding and decoding task payloads for storage and transmission using JSON, MessagePack, or Bincode, and how to implement a custom Codec for your own format.
+excerpt: Learn how Apalis codecs work — encoding and decoding task payloads for storage and transmission using JSON, MessagePack, or Bincode, how to swap a backend's codec with with_codec, and how to implement a custom Codec for your own format.
 bottomNavigation: pagination
 ---
 
-Every task that flows through an Apalis backend is serialized before storage and deserialized before your handler receives it. This conversion is handled by a **codec** — a type that implements the `Codec` trait and is associated with a backend via [`BackendExt`](/docs/backend/introduction).
+Every task that flows through an Apalis backend is serialized before storage and deserialized before your handler receives it. This conversion is handled by a **codec** — a type that implements the `Codec` trait. A backend exposes its codec through the `WireFormatBackend` trait, and you can replace it with the [`with_codec`](#swapping-a-backends-codec) combinator on `BackendExt`.
 
 `apalis-codec` provides ready-made codecs for the most common formats, and the `Codec` trait is straightforward to implement for custom needs.
 
 ---
 
 ## The `Codec` Trait
+
 ```rust
 pub trait Codec<T> {
     /// The encoded (stored) representation of `T`.
@@ -26,9 +27,10 @@ pub trait Codec<T> {
 }
 ```
 
+
 The `Compact` associated type is the backend's storage format — for example `Vec<u8>` for binary formats or `String` for text-based ones. `T` is your job argument type. The codec sits between the two, encoding on the way in and decoding on the way out.
 
-You generally never call `Codec` methods directly — [`TaskSink`](/docs/guides/backend/pushing-tasks) calls `encode` when pushing, and `Backend::poll` calls `decode` before handing a task to the worker.
+You generally never call `Codec` methods directly — [`TaskSink`](/docs/guides/backend/pushing-tasks) calls `encode` when pushing, and the backend calls `decode` before yielding a task from `poll_next` to the worker.
 
 ---
 
@@ -45,11 +47,13 @@ You generally never call `Codec` methods directly — [`TaskSink`](/docs/guides/
 All three require your job type to implement `serde::Serialize` and `serde::Deserialize`.
 
 ### JSON (default)
+
 ```toml
-apalis-codec = "0.1"
+apalis-codec = "1"
 ```
 
 JSON is the default codec used by most Apalis backends. It produces human-readable payloads, which makes debugging straightforward — you can inspect stored tasks directly in your database.
+
 ```rust
 use apalis_codec::json::JsonCodec;
 
@@ -58,11 +62,13 @@ let decoded: MyJob  = JsonCodec::decode(&encoded)?;
 ```
 
 ### MessagePack
+
 ```toml
-apalis-codec = { version = "0.1", features = ["msgpack"] }
+apalis-codec = { version = "1", features = ["msgpack"] }
 ```
 
 MessagePack produces compact binary payloads — typically 20–50% smaller than equivalent JSON. Use it when storage size or serialization throughput matters and human-readable payloads are not required.
+
 ```rust
 use apalis_codec::msgpack::MsgPackCodec;
 
@@ -71,11 +77,13 @@ let decoded: MyJob  = MsgPackCodec::decode(&encoded)?;
 ```
 
 ### Bincode
+
 ```toml
 apalis-codec = { version = "0.1", features = ["bincode"] }
 ```
 
 Bincode is a compact, non-self-describing binary format optimised for speed. It produces the smallest payloads of the three options but is the least portable — decoded data must be read with the same type definition it was encoded with.
+
 ```rust
 use apalis_codec::bincode::BincodeCodec;
 
@@ -102,24 +110,79 @@ let decoded: MyJob  = BincodeCodec::decode(&encoded)?;
 
 ## How Codecs Integrate with Backends
 
-The codec is declared as part of the backend's [`BackendExt`](/docs/guides/backend/introduction) implementation via the `Codec` associated type:
+A backend declares its codec through the `WireFormatBackend` trait, which names the codec, the compact storage type it produces, and gives access to the codec instance:
+
 ```rust
-pub trait BackendExt: Backend {
-    type Codec: Codec<Self::Args, Compact = Self::Compact>;
+pub trait WireFormatBackend {
+    type Codec;
     type Compact;
-    // ...
+
+    fn codec(&self) -> &Self::Codec;
 }
 ```
 
-This means the codec is fixed per backend type — all tasks pushed to a given backend use the same encoding. When you call `TaskSink::push`, the codec's `encode` is called automatically. When the worker polls and receives a task, `decode` is called before the handler sees the arguments.
+Every backend picks a default codec, and all tasks pushed to that backend use it. When you call `TaskSink::push`, the codec's `encode` is called automatically. When the worker polls and receives a task, `decode` is called before the handler sees the arguments.
 
 If encoding fails, a [`TaskSinkError::CodecError`](/docs/guides/backend/pushing-tasks#error-handling) is returned. If decoding fails, the task is surfaced as an error on the worker's stream.
+
+### Swapping a Backend's Codec
+
+The codec is no longer fixed to a backend type. `BackendExt` provides a `with_codec` combinator that swaps out the serialization codec entirely — JSON, MessagePack, Protobuf, or your own — without touching storage logic:
+
+```rust
+pub trait BackendExt: Backend {
+    /// Swaps out the backend's serialization codec entirely (JSON,
+    /// MessagePack, Protobuf, ...) without touching storage logic.
+    fn with_codec<NewCodec>(self, codec: NewCodec) -> WithCodec<Self, NewCodec>
+    where
+        Self: Sized + BackendConfig,
+        NewCodec: Codec<Self::Args>,
+    {
+        WithCodec::new(self, codec)
+    }
+}
+```
+
+`with_codec` consumes the backend and returns a `WithCodec` wrapper. The wrapper implements `WireFormatBackend`, so downstream code sees the new codec and its compact type:
+
+```rust
+impl<B, NewCodec, Args> WireFormatBackend for WithCodec<B, NewCodec>
+where
+    NewCodec: Codec<Args> + Send + 'static,
+    B: BackendConfig<Args = Args>,
+{
+    type Codec = NewCodec;
+    type Compact = NewCodec::Compact;
+
+    fn codec(&self) -> &Self::Codec {
+        &self.codec
+    }
+}
+```
+
+Two bounds matter here: the codec must be able to encode and decode the backend's `Args` type, and it must be `Send + 'static` so it can live inside a running worker.
+
+Using it looks like this:
+
+```rust
+use apalis_codec::msgpack::MsgPackCodec;
+
+let backend = PostgresStorage::new(&pool).with_codec(MsgPackCodec);
+
+let worker = WorkerBuilder::new("tasty-banana")
+    .backend(backend)
+    .build(task_fn);
+```
+
+
+Because the new codec determines the compact type, make sure the backend's storage can hold it. A backend that stores payloads in a binary column works with a `Vec<u8>` codec such as MessagePack, but not necessarily with one that produces `String`. Check the backend's documentation for the compact types it supports.
 
 ---
 
 ## Implementing a Custom Codec
 
 If the built-in codecs do not suit your needs — for example, you need to store tasks as `serde_json::Value` for schema-flexible querying, or you have a proprietary binary format — implement `Codec` directly:
+
 ```rust
 use apalis_core::backend::codec::Codec;
 
@@ -144,6 +207,12 @@ where
 
 Here `Compact = String` rather than `Vec<u8>` — useful for backends like PostgreSQL where storing tasks as a `TEXT` or `JSONB` column makes them directly queryable with SQL.
 
+Then attach it to a backend with `with_codec`:
+
+```rust
+let backend = PostgresStorage::new(&pool).with_codec(MyCodec);
+```
+
 ---
 
 ## Summary
@@ -155,4 +224,10 @@ Here `Compact = String` rather than `Vec<u8>` — useful for backends like Postg
 | `BincodeCodec` | `bincode` | Maximum performance in Rust-only pipelines |
 | Custom | — | Proprietary formats, queryable storage types |
 
-Codecs are the only layer in Apalis that touches the raw bytes of your task payload. Keeping them swappable via a trait — rather than hardcoding a format — means you can change serialization strategy per backend without touching your handler logic.
+| Trait | Role |
+|---|---|
+| `Codec<T>` | Encodes and decodes `T` to and from a compact representation |
+| `WireFormatBackend` | Exposes a backend's codec and compact type |
+| `BackendExt::with_codec` | Swaps a backend's codec without changing its storage logic |
+
+Codecs are the only layer in Apalis that touches the raw bytes of your task payload. Keeping them swappable — through a trait and a `with_codec` combinator, rather than a hardcoded format — means you can change serialization strategy per backend without touching your handler logic.

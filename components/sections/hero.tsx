@@ -35,7 +35,9 @@ export const Hero = () => {
     <section className="relative z-10 my-4">
       <div className="w-full max-w-(--breakpoint-2xl) mx-auto px-4 sm:px-8 lg:px-16 pt-16">
         <section className="flex flex-col gap-8 lg:gap-11 items-center text-center">
-          <h1 className="font-display text-4xl sm:text-4xl lg:text-5xl mb-4 mx-auto">
+          <Intro />
+
+          {/*<h1 className="font-display text-4xl sm:text-4xl lg:text-5xl mb-4 mx-auto">
             <span className="block relative">
               <AnimatePresence initial={false}>
                 <span className="relative opacity-0">
@@ -55,22 +57,98 @@ export const Hero = () => {
             <span className="text-transparent bg-clip-text bg-linear-to-br from-white to-zinc-300">
               with confidence
             </span>
-          </h1>
-          <div className="flex flex-col sm:flex-row items-start gap-3">
+          </h1>*/}
+          <div className="flex flex-col sm:flex-row items-start gap-3 mb-4">
             <Button href="/docs/introduction/quickstart">Get Started</Button>
             <Button href="https://github.com/apalis-dev/examples" secondary>
               View Examples
             </Button>
           </div>
-          <Image
-            alt="Web UI dashboard"
-            className="rounded-t-3xl border-b-0 border hover:cursor-pointer mb-8"
-            src="/images/board.png"
-            width={3236}
-            height={1714}
-          />
+
         </section>
       </div>
     </section>
   )
+}
+
+
+
+export function Intro() {
+  const title = "Apalis intro video"
+  const videoId = "EtIcrNnDNpg";
+  const [playing, setPlaying] = useState(false);
+  const fallback = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  const [src, setSrc] = useState(
+     `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`
+  );
+
+  // maxresdefault doesn't exist for every video: YouTube answers with a tiny placeholder.
+  const useFallback = () => src !== fallback && setSrc(fallback);
+
+  return (
+    <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        className="absolute inset-0 h-full w-full object-cover"
+        src={src}
+        alt=""
+        onError={useFallback}
+        onLoad={(e) => {
+          if (e.currentTarget.naturalWidth <= 120) useFallback();
+        }}
+      />
+
+      {playing ? (
+        <iframe
+          className="absolute inset-0 h-full w-full border-0"
+          src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&playsinline=1`}
+          title={title}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerPolicy="strict-origin-when-cross-origin"
+          allowFullScreen
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setPlaying(true)}
+          aria-label={`Play video: ${title}`}
+          className={`
+            group absolute inset-0 grid h-full w-full cursor-pointer place-items-center
+            bg-black/30 p-0 text-white transition-colors hover:bg-black/15
+            focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-white
+            motion-reduce:transition-none
+          `}
+        >
+          <span
+            aria-hidden="true"
+            className={`
+              relative grid aspect-square w-[clamp(56px,11%,96px)] place-items-center rounded-full
+              bg-white/15 ring-[1.5px] ring-inset ring-white/55
+              backdrop-blur-[14px] backdrop-saturate-[1.4]
+              transition-all duration-300 ease-out
+              group-hover:scale-[1.06] group-hover:bg-white/25
+              group-focus-visible:scale-[1.06] group-focus-visible:bg-white/25
+              motion-reduce:transition-none
+
+              after:absolute after:-inset-2.5 after:rounded-full after:border after:border-white/35
+              after:opacity-0 after:scale-90 after:transition-all after:duration-300 after:ease-out
+              group-hover:after:scale-100 group-hover:after:opacity-100
+              group-focus-visible:after:scale-100 group-focus-visible:after:opacity-100
+              motion-reduce:after:transition-none
+            `}
+          >
+            <svg viewBox="0 0 24 24" className="h-auto w-[42%]">
+              <path
+                d="M9 6.5 18 12 9 17.5Z"
+                fill="currentColor"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </button>
+      )}
+    </div>
+  );
 }

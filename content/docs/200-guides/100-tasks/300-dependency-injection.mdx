@@ -15,7 +15,8 @@ The `FromRequest` trait allows you to define how various types should be extract
 
 `apalis` comes with several pre-implemented extractors that you can use immediately:
 
-- **`Attempt`**: Provides information about the current task execution attempt
+- **`TaskContex`**: Provides information about the current task execution
+- **`Attempt`**: Provides information about the current attempt
 - **`WorkerContext`**: Gives access to worker-specific context and metadata
 - **`Data<T>`**: Extracts shared application state or configuration
 - **`TaskId`**: Provides the unique identifier for the current task
@@ -60,10 +61,10 @@ impl User {
 }
 
 // Implement FromRequest for User
-impl<Ctx: Sync, Id: Sync> FromRequest<Task<Email, Ctx, Id>> for User {
+impl FromRequest<Task<Email>> for User {
     type Error = Infallible;
     
-    async fn from_request(req: &Task<Email, Ctx, Id>) -> Result<Self, Self::Error> {
+    async fn from_request(req: &Task<Email>) -> Result<Self, Self::Error> {
         let user_id = req.args.to.clone();
         User::find_by_id(user_id).await
     }
@@ -116,10 +117,10 @@ struct Organization<S> {
     settings: S,
 }
 
-impl<Ctx: Sync, Id: Sync, S: Sync> FromRequest<Task<Email, Ctx, Id>> for Organization<S> {
+impl<S: Sync> FromRequest<Task<Email>> for Organization<S> {
     type Error = Infallible;
     
-    async fn from_request(req: &Task<Email, Ctx, Id>) -> Result<Self, Self::Error> {
+    async fn from_request(req: &Task<Email>) -> Result<Self, Self::Error> {
         // Extract organization from user context
         todo!()
     }
@@ -143,10 +144,10 @@ You can implement conditional logic within extractors:
 ```rust
 struct AuthenticatedUser(User);
 
-impl<Ctx: Sync, Id: Sync> FromRequest<Task<Email, Ctx, Id>> for AuthenticatedUser {
+impl FromRequest<Task<Email>> for AuthenticatedUser {
     type Error = AuthError;
     
-    async fn from_request(req: &Task<Email, Ctx, Id>) -> Result<Self, Self::Error> {
+    async fn from_request(req: &Task<Email>) -> Result<Self, Self::Error> {
         let user = User::find_by_id(req.args.user_id.clone()).await
             .map_err(|_| AuthError::UserNotFound)?;
             
@@ -171,10 +172,10 @@ enum UserExtractionError {
     ValidationFailed,
 }
 
-impl<Ctx: Sync, Id: Sync> FromRequest<Task<Email, Ctx, Id>> for ValidatedUser {
+impl FromRequest<Task<Email>> for ValidatedUser {
     type Error = UserExtractionError;
     
-    async fn from_request(req: &Task<Email, Ctx, Id>) -> Result<Self, Self::Error> {
+    async fn from_request(req: &Task<Email>) -> Result<Self, Self::Error> {
         let user = User::find_by_id(req.args.user_id.clone()).await
             .map_err(|e| UserExtractionError::DatabaseError(e.to_string()))?;
             
@@ -210,10 +211,10 @@ mod tests {
     use super::*;
     
     // Mock implementation for testing
-    impl<Ctx: Sync, Id: Sync> FromRequest<Task<Email, Ctx, Id>> for User {
+    impl FromRequest<Task<Email>> for User {
         type Error = DatabaseError;
         
-        async fn from_request(_req: &Task<Email, Ctx, Id>) -> Result<Self, Self::Error> {
+        async fn from_request(_req: &Task<Email>) -> Result<Self, Self::Error> {
             Ok(User {
                 id: "test-user".to_string(),
                 email: "test@example.com".to_string(),

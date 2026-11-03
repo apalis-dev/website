@@ -361,7 +361,7 @@ async fn main() -> anyhow::Result<()> {
     let pool = PgPool::connect(&db).await?;
 
     PostgresStorage::setup(&pool).await.unwrap();
-    let mut backend = PostgresStorage::new_with_notify(&pool, &Config::default());
+    let mut backend = PostgresStorage::new(&pool).with_pubsub();
 
     let mut stream = TaskListenerStream::<MyMsg>::bind(
         "127.0.0.1:5000",
@@ -443,4 +443,3 @@ It gives you full control over memory, concurrency, and backpressure ---
 without sacrificing ergonomic async Rust patterns.
 
 Happy building 🚀
-

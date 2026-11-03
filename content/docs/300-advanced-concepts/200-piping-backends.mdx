@@ -1,12 +1,10 @@
 ---
-title: Piping Streams
-excerpt: Learn how to pipe any async stream into an Apalis backend using PipeExt — connecting cron schedules, event streams, and custom sources to persistent storage backends like SQLite or PostgreSQL.
+title: Piping Backends
+excerpt: Learn how to pipe any backend into another backend using BackendExt::pipe_to — connecting cron schedules, event streams, and custom sources to persistent storage backends like SQLite or PostgreSQL.
 bottomNavigation: pagination
 ---
 
 Not all task sources are persistent queues. Cron schedules, webhook event streams, change-data-capture feeds, and other time-driven sources produce tasks ephemerally — if your worker is down when a tick fires, that work is simply lost.
-
-`PipeExt` solves this by letting you route any [`Stream`](https://docs.rs/futures/latest/futures/stream/trait.Stream.html) into a backend before a worker processes it. The stream's items are written to storage first, then consumed by the worker — giving you persistence, retries, and observability over sources that would otherwise be fire-and-forget.
 
 ---
 
@@ -27,14 +25,6 @@ CronStream ──▶ pipe_to(SqliteStorage) ──▶ Worker
 The resulting `Pipe` type itself implements `Backend` — so it plugs into `WorkerBuilder` exactly like any other backend.
 
 ---
-
-## The `PipeExt` Trait
-```rust
-pub trait PipeExt<B, Args, Ctx>: Sized {
-    /// Pipe this stream into the provided backend.
-    fn pipe_to(self, backend: B) -> Pipe<Self, B, Args, Ctx>;
-}
-```
 
 `pipe_to` is available on any stream whose items are `Result<Args, Err>` and whose target backend implements both [`Backend`] and [`TaskSink<Args>`](/docs/guides/backend/pushing-tasks). The returned [`Pipe`] wraps both the source stream and the destination backend, forwarding items from one to the other when the worker starts polling.
 
@@ -136,16 +126,6 @@ This pattern is useful in tests or batch jobs where the full source is known upf
 
 Because `Pipe` derefs to the inner backend, you can call any backend method — including `list_tasks`, `list_workers`, and other [`Expose`](/docs/guides/backend/maintainance) methods — directly on the `Pipe` if the inner backend supports them.
 
-### Error handling
-
-`Pipe` wraps all errors in `PipeError`:
-
-| Variant | Cause |
-|---|---|
-| `PipeError::Inner(e)` | Any error from the source stream, codec, or inner backend |
-| `PipeError::EmptyStream` | The source stream yielded `None` unexpectedly |
-
----
 
 ## Choosing a Target Backend
 
@@ -164,15 +144,15 @@ For production cron jobs or any stream where missed ticks matter, always pipe in
 
 ## Summary
 
-`PipeExt` bridges the gap between ephemeral stream sources and durable job queues:
+`BackendExt::pipe_to` bridges the gap between ephemeral stream sources and durable job queues:
 ```
-any Stream<Item = Result<Args, E>>
+any Backend
   │
-  └── .pipe_to(backend)
+  └── .pipe_to(other_backend)
         │
         ├── writes items to backend storage (TaskSink)
         ├── worker reads from backend (Backend::poll)
         └── inherits all backend capabilities: retries, metrics, introspection
 ```
 
-A single `.pipe_to()` call turns a fire-and-forget stream into a fully observable, retriable, persistent task queue — with no changes to your handler function.
+A single `.pipe_to()` call turns a fire-and-forget source into a fully observable, retriable, persistent task queue — with no changes to your handler function.

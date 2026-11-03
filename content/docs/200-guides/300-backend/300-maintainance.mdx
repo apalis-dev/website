@@ -82,8 +82,8 @@ Apalis provides two task-listing traits depending on whether you need decoded or
 
 ### `ListTasks<Args>` — Tasks in a Specific Queue
 ```rust
-pub trait ListTasks<Args>: Backend {
-    fn list_tasks(&self, queue: &str, filter: &Filter) -> impl Future<Output = Result<Vec<Task<Args, Self::Context, Self::IdType>>, Self::Error>> + Send;
+pub trait ListTasks: Backend {
+    fn list_tasks(&self, queue: &str, filter: &Filter) -> impl Future<Output = Result<Vec<Task<Self::Compact>>, Self::Error>> + Send;
 }
 ```
 
@@ -92,7 +92,7 @@ Returns fully decoded `Task<Args, …>` values for a named queue, subject to the
 ### `ListAllTasks` — Tasks Across All Queues
 ```rust
 pub trait ListAllTasks: BackendExt {
-    fn list_all_tasks(&self, filter: &Filter) -> impl Future<Output = Result<Vec<Task<Self::Compact, Self::Context, Self::IdType>>, Self::Error>> + Send;
+    fn list_all_tasks(&self, filter: &Filter) -> impl Future<Output = Result<Vec<Task<Self::Compact>>, Self::Error>> + Send;
 }
 ```
 
@@ -159,4 +159,3 @@ Expose<Args>
 ```
 
 Backends that satisfy all six traits are automatically `Expose`-compatible — making them suitable targets for dashboards, health endpoints, and administrative tooling without any extra boilerplate.
-

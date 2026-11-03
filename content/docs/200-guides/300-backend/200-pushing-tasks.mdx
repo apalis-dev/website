@@ -51,7 +51,7 @@ use apalis::prelude::*;
 
 async fn enqueue_task<S>(mut backend: S)
 where
-    S: TaskSink<String>,
+    S: TaskSink<String, Durable>,
 {
     backend
         .push("send_email:user@example.com".to_string())
@@ -70,7 +70,7 @@ When you have a collection of tasks ready up front, `push_bulk` is more efficien
 ```rust
 async fn enqueue_bulk<S>(mut backend: S)
 where
-    S: TaskSink<String>,
+    S: TaskSink<String, Durable>,
 {
     let jobs = vec![
         "job1".to_string(),
@@ -94,7 +94,7 @@ use futures_util::stream;
 
 async fn enqueue_stream<S>(mut backend: S)
 where
-    S: TaskSink<u32>,
+    S: TaskSink<u32, Durable>,
 {
     let stream = stream::iter(0..1_000_000);
 
@@ -122,7 +122,7 @@ use apalis_core::task::Task;
 
 async fn push_custom_task<S>(mut backend: S)
 where
-    S: TaskSink<String>,
+    S: TaskSink<String, Durable>,
 {
     let task = Task::new("important_job".to_string());
 
@@ -137,7 +137,7 @@ use apalis_core::task::Task;
 
 async fn push_many_tasks<S>(mut backend: S)
 where
-    S: TaskSink<String>,
+    S: TaskSink<String, Durable>,
 {
     let tasks = stream::iter(vec![
         Task::new("task_a".to_string()),
@@ -157,7 +157,7 @@ where
 | `push` | Single value | One-off task submission |
 | `push_bulk` | `Vec<Args>` | Small–medium in-memory batches |
 | `push_stream` | `Stream<Item = Args>` | Large or dynamically generated datasets |
-| `push_task` | `Task<Args, _, _>` | Full control over task envelope |
+| `push_task` | `Task<Args>` | Full control over task envelope |
 | `push_all` | `Stream<Item = Task<...>>` | Streaming pre-built task objects |
 
 ---
@@ -209,4 +209,3 @@ match backend.push("job".to_string()).await {
 - `TaskSink` for domain-specific, type-safe task submission
 
 you can build scalable task producers that slot naturally into the async Rust ecosystem — whether you're pushing a single email job or streaming millions of records into a queue.
-

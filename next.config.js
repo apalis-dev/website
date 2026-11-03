@@ -52,6 +52,11 @@ const nextConfig = {
         destination: "/tutorials/basics/",
         permanent: true,
       },
+      {
+        source: '/blog/introducing-v1-2026-04-01',
+        destination: '/blog/introducing-v1-2026-10-16',
+        permanent: true,
+      },
     ];
   },
   async headers() {

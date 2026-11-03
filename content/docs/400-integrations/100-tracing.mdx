@@ -103,7 +103,7 @@ Both `enable_tracing()` and `TraceLayer` use the `MakeSpan` trait to construct t
 ### The `MakeSpan` trait
 ```rust
 pub trait MakeSpan<Args, Ctx, IdType> {
-    fn make_span(&mut self, req: &Task<Args, Ctx, IdType>) -> Span;
+    fn make_span(&mut self, req: &Task<Args>) -> Span;
 }
 ```
 
@@ -137,7 +137,7 @@ impl<Args, Ctx, IdType> MakeSpan<Args, Ctx, IdType> for DetailedTaskSpan
 where
     IdType: Display,
 {
-    fn make_span(&mut self, req: &Task<Args, Ctx, IdType>) -> Span {
+    fn make_span(&mut self, req: &Task<Args>) -> Span {
         let task_id = req
             .parts
             .task_id
@@ -213,5 +213,3 @@ For production use, swap the `fmt` layer for an OpenTelemetry exporter (e.g. `op
 | `ContextualTaskSpan` | Reads stored `TracingContext` to propagate upstream trace IDs |
 | `TracingContext` | Metadata type for attaching W3C trace fields at enqueue time |
 | `MakeSpan` trait | Implement to fully control the shape of each task's span |
-
-

@@ -1,0 +1,206 @@
+---
+title: Introducing Apalis v1.0.0
+excerpt: After years of iteration, Apalis 1.0.0 is here — with a cleaner API, a composable trait system, workflows, DAG support, task idempotency, OpenTelemetry metrics, and a real-time web dashboard.
+date: 2026-10-16
+authors:
+  - name: Njuguna Mureithi
+    description: Core Maintainer
+    avatar: /images/geoff.jpg
+    twitter: https://twitter.com/mureithi_me
+relatedPosts:
+  - building-a-task-tcpstream-pipe-with-apalis-postgres-2026-02-20
+---
+
+After a long beta and release candidate cycle, **Apalis 1.0.0 is stable**. This release represents a significant maturation of the project — the API is cleaner and more composable, the backend trait system has been fully granularised, workflows now support directed acyclic graphs, and observability has been elevated to a first-class concern.
+
+Here is what has changed, what is new, and what you need to know if you are upgrading from 0.7.x.
+
+---
+
+## A New Backend Architecture
+
+The most significant structural change in v1 is the granularisation of the backend trait system. Where previous versions bundled capabilities into a single monolithic `Backend` trait, v1 splits them across focused, composable traits:
+
+- **`Backend`** — the minimal contract: polling, heartbeating, middleware
+- **`BackendExt`** — Extension trait that allows composition
+- **`TaskSink`** — task enqueueing: single, bulk, stream, and pre-built task variants
+- **`Expose`** — observability: queue listing, worker listing, task filtering, metrics
+- **`BackendFactory`** — connection sharing across multiple workers
+
+This means you can now write generic code that depends only on the capabilities it actually uses — a function that only pushes tasks bounds on `TaskSink`, not the full `Backend`.
+
+`Backend` itself has also been standardised: it now uses Rust's default poll-based mechanism, and gains `BackendConfig` and `WireFormatBackend` so that backends describe their configuration and wire format in a consistent way.
+
+See the [Backend Trait](/docs/guides/backend/introduction) and [Exposing Backends](/docs/guides/backend/maintainance) documentation for the full picture.
+
+Backend crates have also moved to their own repositories, making versioning and maintenance independent of the core crate.
+
+---
+
+## Breaking API Changes
+
+Several APIs have been renamed or restructured for clarity. Here is a quick reference.
+
+### `WorkerBuilder` takes the backend second
+
+The backend must be declared explicitly as the second step in the builder chain, before layers and data. Default middleware (`.layer`, `.data`) follows the backend, and the task function is now passed as `taskfn`-style handlers:
+
+```rust
+// Before
+WorkerBuilder::new("tasty-banana")
+    .middleware()
+    .backend(sqlite)
+    .more_middleware()
+    .build(service_fn(task));
+
+// After
+WorkerBuilder::new("tasty-banana")
+    .backend(sqlite)
+    // default middleware: .layer / .data
+    .build(task_fn);
+```
+
+### `Monitor` restarts are now factory-based
+
+`Monitor::register` now accepts a closure that receives the run count, enabling per-restart configuration:
+
+```rust
+// Before
+Monitor::new()
+    .register(WorkerBuilder::new("tasty-banana")...);
+
+// After
+Monitor::new()
+    .register(|runs: usize| {
+        WorkerBuilder::new("tasty-banana")...
+    });
+```
+
+Use `Monitor::should_restart` to control whether a worker restarts after a given error. Returning `true` restarts the worker, so this example restarts on every error except a graceful exit:
+
+```rust
+Monitor::new()
+    .register(|_| ...)
+    .should_restart(|_ctx, last_err, _run| {
+        // Don't restart on graceful exit
+        !matches!(last_err, WorkerError::GracefulExit)
+    });
+```
+
+### Renames and type changes
+
+| Before | After |
+|---|---|
+| `WorkerContext::id()` | `WorkerContext::name()` |
+| `service_fn` | `taskfn` |
+| `Pipe::pipe_to_storage` | `BackendExt::pipe_to` |
+| `Parts<Ctx, Id>` | `ExecutionContext` |
+| `Task<Args, Ctx, IdType>` | `Task<Args>` |
+
+`Parts<Ctx, Id>` becomes `ExecutionContext` and the context is merged into the task. If your handlers or middleware read `Parts`, expect to touch them.
+
+### Tasks, metadata and exposed endpoints
+
+- **Metadata is now a key-value store**, rather than a single typed value. Anything that attaches metadata to a task, including tracing context, goes through this API.
+- **The queue input has been removed from the exposed endpoints.** If you call `Expose` methods or build on `apalis-board-api`, drop the queue argument.
+- In `apalis-sql`, `SqlDateTime` and `SqlDateTimeExt` have lost their `Sql` prefix, and a new `SqlDateTimeExt` trait provides unified datetime handling with `time` crate support.
+
+---
+
+## Workflows
+
+v1 ships `apalis_workflow` as a separate crate with two workflow models:
+
+**Sequential workflows** — linear pipelines built with composable combinators: `and_then`, `filter_map`, `fold`, `repeat_until`, `delay_for`, and `delay_with`. Each step receives the output of the previous one and the whole pipeline runs inside a standard worker.
+
+**DAG workflows** — directed acyclic graph execution where independent nodes run in parallel and dependent nodes wait for their specific inputs. The graph is validated before execution and can be printed in DOT format for visualisation. Node entry and output handling is abstracted behind the new `DagCodec` trait, and fan-in collection now handles multiple collection scenarios correctly.
+
+Workflow errors are now concrete types rather than `BoxDynError`, giving better typing, and the `Display` constraints on workflow services have been removed.
+
+Both workflow types are standard `Backend` implementations — they slot into `WorkerBuilder` with no special runner. See [Sequential Workflows](/docs/guides/workflows/sequential-workflow) and [DAG Workflows](/docs/guides/workflows/dag-workflow) for full documentation.
+
+---
+
+## Task Idempotency and Long-Running Tasks
+
+Two additions help with reliability:
+
+- **Idempotency** — tasks can now be enqueued idempotently, with dedicated support in the SQL backends, so retried or duplicated enqueues don't create duplicate work.
+- **Result collector** — long-running tasks can report their results through a collector rather than holding a worker for the whole run.
+
+```rs
+let to = "order-1";
+let email = Email {
+    to: to.to_owned(),
+    text: "Test background job from apalis".to_owned(),
+    subject: "Background email job".to_owned(),
+};
+let task = TaskBuilder::new(email).idempotency_key(to).build();
+```
+
+Handler extraction has also been extended: `FromRequest` now supports `Option<T>`, so optional data can be extracted without custom wrappers.
+
+---
+
+## Contextual Tracing
+
+Distributed trace context can now be propagated through the queue. Attach a `TracingContext` to a task at enqueue time and the worker will include the upstream `trace_id`, `span_id`, and W3C trace flags in the emitted span — linking background job execution back to the HTTP request or event that triggered it. `TracingContext` is serde-compatible, and OpenTelemetry context propagation across the worker tracing layers has been improved.
+
+```rust
+let context = TracingContext::new()
+    .with_trace_id(&current_trace_id)
+    .with_span_id(&current_span_id)
+    .with_trace_flags(1);
+
+let task = Task::builder(my_job).meta(context).build();
+```
+
+On the worker side, `ContextualTaskSpan` reads the stored context automatically. See [Tracing Integration](/docs/integrations/tracing) for full setup instructions.
+
+---
+
+## OpenTelemetry Metrics Layer
+
+A new `OpenTelemetryMetricsLayer` records task throughput and processing duration using the [OTel Messaging semantic conventions](https://opentelemetry.io/docs/specs/semconv/messaging/). Two instruments are emitted per task:
+
+- `messaging.client.consumed.messages` — a counter tagged by worker, job type, and outcome
+- `messaging.process.duration` — a histogram with pre-configured background-job-appropriate buckets
+
+The layer uses the global OTel meter provider, so it works with any exporter — OTLP, Jaeger, Datadog, Honeycomb — without additional configuration. See [OpenTelemetry Integration](/docs/integrations/open-telemetry).
+
+---
+
+## `TaskId` is Now Explicit
+
+`TaskId<T>` becomes `TaskId`. The type parameter must be declared explicitly to prevent accidental mismatches between the ID type expected by a backend and the one inferred by the compiler. Update any code that relied on the implicit default.
+
+---
+
+## Testing, Shutdown and Fixes
+
+- `TestWorker` has been removed, as you can now test workers directly.
+- Worker pause/resume now behaves correctly.
+- Idle workers are woken when monitor shutdown begins, so shutdowns no longer stall on workers waiting for work.
+- New file storage and codec crates (including CSV support) are available for lightweight or local development setups.
+
+---
+
+## `apalis-board` Web Dashboard
+
+`apalis-board` reaches a stable release candidate alongside v1. It provides a real-time web dashboard for managing Apalis backends — queue overviews, task browsing and filtering, worker health monitoring, and live `tracing` event streaming via server-sent events.
+
+It is built on `apalis-board-api` (Axum and Actix adapters) and `apalis-board-web` (a Leptos frontend bundled with the crate). Full support is available for SQLite, PostgreSQL, and MySQL backends. See [Web UI](/docs/products/web-board).
+
+---
+
+## What's Next
+
+v1 is the foundation. Near-term work includes ApalisPro, expanded workflow combinators, and further ergonomic improvements to the API.
+
+If you are upgrading from 0.7.x, start with the renames above, then work through the sections that match the features you use. The [Changelog](https://github.com/apalis-dev/apalis/blob/main/CHANGELOG.md) has an upgrade guide with before/after examples for the main changes and a full PR breakdown for the rest. If you are starting fresh, the [getting started](/docs/introduction/quickstart) guide reflects the v1 API throughout.
+
+Thank you to everyone who filed issues, reviewed pull requests, and tested release candidates during the long road to 1.0.
+
+---
+
+*Apalis is an open-source async job queue for Rust. [GitHub](https://github.com/apalis-dev/apalis) · [crates.io](https://crates.io/crates/apalis) · [docs.rs](https://docs.rs/apalis)*

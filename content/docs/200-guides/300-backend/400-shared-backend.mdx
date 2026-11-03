@@ -1,42 +1,39 @@
 ---
 title: Shared Connections
-excerpt: Learn how to share a single backend connection across multiple Apalis workers using the MakeShared trait — reducing resource overhead and improving performance in multi-queue Rust applications.
+excerpt: Learn how to share a single backend connection across multiple Apalis workers using the BackendFactory trait — reducing resource overhead and improving performance in multi-queue Rust applications.
 bottomNavigation: pagination
 ---
 
-When running multiple workers against the same data store, opening a separate connection per worker is wasteful. Apalis's [`MakeShared`](#the-makeshared-trait) trait solves this by letting you derive multiple typed backend instances from a single underlying connection — so your PostgreSQL pool, Redis client, or custom store is shared rather than duplicated.
+When running multiple workers against the same data store, opening a separate connection per worker is wasteful. Apalis's [`BackendFactory`](#the-backendfactory-trait) trait solves this by letting you create multiple typed backend instances from a single underlying connection — so your PostgreSQL pool, Redis client, or custom store is shared rather than duplicated.
 
 > **Rule of thumb:** if you have more than one job type backed by the same database or broker, use a shared connection.
 
 ---
 
-## The `MakeShared` Trait
+## The `BackendFactory` Trait
+
 ```rust
-pub trait MakeShared<Args> {
-    /// The concrete backend type returned for workers to consume.
-    type Backend;
+/// Trait for creating backend instances, generic over job-type arguments.
+pub trait BackendFactory<Args> {
+    /// The backend type produced by this factory.
+    type Backend: Backend + BackendConfig<Args = Args>;
 
-    /// Configuration options applied when creating the shared instance.
-    /// Falls back to `Default` when calling `make_shared()`.
-    type Config;
+    /// The error returned if backend creation fails.
+    type Error;
 
-    /// The error returned if a shared instance cannot be created —
-    /// for example, if the underlying connection is no longer healthy.
-    type MakeError;
-
-    /// Create a shared backend instance using default configuration.
-    fn make_shared(&mut self) -> Result<Self::Backend, Self::MakeError>
+    /// Create a backend using `Config::default()`.
+    fn create(&mut self) -> Result<Self::Backend, Self::Error>
     where
-        Self::Config: Default,
+        <Self::Backend as BackendConfig>::Config: Default,
     {
-        self.make_shared_with_config(Default::default())
+        self.create_with_config(Default::default())
     }
 
-    /// Create a shared backend instance with explicit configuration.
-    fn make_shared_with_config(
+    /// Create a backend using the given configuration.
+    fn create_with_config(
         &mut self,
-        config: Self::Config,
-    ) -> Result<Self::Backend, Self::MakeError>;
+        config: <Self::Backend as BackendConfig>::Config,
+    ) -> Result<Self::Backend, Self::Error>;
 }
 ```
 
@@ -44,17 +41,19 @@ pub trait MakeShared<Args> {
 
 | Type | Purpose |
 |---|---|
-| `Backend` | The typed backend instance handed to a [`WorkerBuilder`] |
-| `Config` | Optional configuration applied per-instance (e.g. queue name, poll interval) |
-| `MakeError` | Returned if the shared instance cannot be constructed |
+| `Backend` | The typed backend instance handed to a [`WorkerBuilder`]. It must implement both [`Backend`](/docs/guides/backend/introduction) and `BackendConfig<Args = Args>` |
+| `Error` | Returned if the backend cannot be created, for example if the underlying connection is no longer healthy |
 
-`make_shared()` is a convenience wrapper around `make_shared_with_config` that uses `Config::default()`. Call `make_shared_with_config` directly when you need per-worker tuning.
+Unlike the previous `MakeShared` trait, the factory no longer declares its own `Config` type. The configuration type is defined by the backend through `BackendConfig`, and the factory simply accepts `<Self::Backend as BackendConfig>::Config`. This keeps a backend's configuration the same whether you build it directly or through a factory.
+
+`create()` is a convenience wrapper around `create_with_config` that uses `Config::default()`, so it is only available when the backend's config implements `Default`. Call `create_with_config` directly when you need per-worker tuning.
 
 ---
 
 ## Why Share Connections?
 
 Without shared connections, each worker independently manages its own connection to the backend:
+
 ```mermaid
 graph LR
     A["Worker A (EmailJob)"] --> C1["connection 1"]
@@ -66,7 +65,8 @@ graph LR
     C3 --> DB
 ```
 
-With `MakeShared`, a single connection (or pool) is distributed across all workers:
+With `BackendFactory`, a single connection (or pool) is distributed across all workers:
+
 ```mermaid
 graph LR
     S[SharedPostgresStorage] --> P[pool]
@@ -75,7 +75,7 @@ graph LR
 
     S --> B1[EmailJobBackend]
     S --> B2[SmsJobBackend]
-    S --> B3[ReportJob&gt;]
+    S --> B3[ReportJobBackend]
 
     B1 --> W1[Worker A]
     B2 --> W2[Worker B]
@@ -92,11 +92,12 @@ This means:
 ## Postgres Example
 
 The following example runs two workers — one processing `HashMap` jobs, one processing `i32` jobs — over a single shared `PgPool`.
+
 ```rust fileName="main.rs" mode="compile"
 use std::{collections::HashMap, time::Duration};
 
 use apalis::prelude::*;
-use apalis_postgres::{shared::SharedPostgresStorage, *};
+use apalis_postgres::{factory::PostgresStorageFactory, *};
 use futures::stream;
 
 #[tokio::main]
@@ -109,14 +110,14 @@ async fn main() {
     // 2. Run schema migrations if this is first use.
     PostgresStorage::setup(&pool).await.unwrap();
 
-    // 3. Wrap the pool in a SharedPostgresStorage — the single source of truth.
-    let mut store = SharedPostgresStorage::new(pool);
+    // 3. Wrap the pool in a PostgresStorageFactory — the single source of truth.
+    let mut store = PostgresStorageFactory::new(pool);
 
-    // 4. Derive a typed backend for each job type.
-    //    Each call to make_shared() returns an independent Backend
+    // 4. Create a typed backend for each job type.
+    //    Each call to create() returns an independent Backend
     //    that shares the underlying pool.
-    let mut map_store = store.make_shared().unwrap();
-    let mut int_store = store.make_shared().unwrap();
+    let mut map_store = store.create().unwrap();
+    let mut int_store = store.create().unwrap();
 
     // 5. Enqueue some tasks.
     map_store
@@ -126,9 +127,9 @@ async fn main() {
     int_store.push(99).await.unwrap();
 
     // 6. A generic handler — each worker uses the same function signature.
-    async fn send_reminder<T, I>(
+    async fn send_reminder<T>(
         _: T,
-        _task_id: TaskId<I>,
+        _task_id: TaskId,
         wrk: WorkerContext,
     ) -> Result<(), BoxDynError> {
         tokio::time::sleep(Duration::from_secs(2)).await;
@@ -136,7 +137,7 @@ async fn main() {
         Ok(())
     }
 
-    // 7. Build workers from the derived backends.
+    // 7. Build workers from the created backends.
     let int_worker = WorkerBuilder::new("worker-int")
         .backend(int_store)
         .build(send_reminder);
@@ -153,55 +154,77 @@ async fn main() {
 ### What's happening step by step
 
 1. A single `PgPool` is created — this is the only point of contact with the database.
-2. `SharedPostgresStorage::new(pool)` wraps it in the `MakeShared`-capable store type.
-3. Each `make_shared()` call produces an independent `Backend` parameterised over a different `Args` type — `HashMap<String, String>` and `i32` here.
-4. Tasks are pushed via [`TaskSink`](/docs/backend/pushing-tasks) as normal; shared backends implement the same push interface.
+2. `PostgresStorageFactory::new(pool)` wraps it in the `BackendFactory`-capable store type.
+3. Each `create()` call produces an independent `Backend` parameterised over a different `Args` type — `HashMap<String, String>` and `i32` here.
+4. Tasks are pushed via [`TaskSink`](/docs/backend/pushing-tasks) as normal; created backends implement the same push interface.
 5. Two workers are built and run concurrently with `tokio::try_join!`. If either worker errors, both are cancelled.
 
 ---
 
 ## Using Custom Configuration
 
-When you need per-backend tuning — such as a different poll interval or queue name — use `make_shared_with_config`:
+When you need per-backend tuning — such as a different poll interval or queue name — use `create_with_config`:
+
 ```rust
-let config = PostgresConfig {
-    poll_interval: Duration::from_millis(500),
+let config = Config {
+    heartbeat_interval: Duration::from_millis(1000),
     ..Default::default()
 };
 
-let mut fast_store = store.make_shared_with_config(config).unwrap();
+let mut fast_store = store.create_with_config(config).unwrap();
 ```
 
-The available fields in `Config` depend on the backend implementation. Refer to the backend-specific documentation for the full list of options.
+The available fields in the config depend on the backend's `BackendConfig` implementation. Refer to the backend-specific documentation for the full list of options.
 
 ---
 
-## Implementing `MakeShared` for a Custom Backend
+## Implementing `BackendFactory` for a Custom Backend
 
-If you are building your own backend, implement `MakeShared` by cloning or reference-counting the underlying connection:
+If you are building your own backend, implement `BackendFactory` by cloning or reference-counting the underlying connection. The backend type it produces must implement both `Backend` and `BackendConfig<Args = Args>`, and the config type is declared on `BackendConfig`:
+
 ```rust
-use apalis::prelude::MakeShared;
+use apalis::prelude::*;
 
 struct MySharedBackend<Args> {
     pool: Arc<MyConnectionPool>,
     _phantom: PhantomData<Args>,
 }
 
-impl<Args> MakeShared<Args> for MySharedBackend<Args> {
-    type Backend = MyBackend<Args>;
-    type Config  = MyBackendConfig;
-    type MakeError = MyError;
+// The backend declares its own config through BackendConfig.
+impl<Args> BackendConfig for MyBackend<Args> {
+    type Args = Args;
+    type Config = MyBackendConfig;
+    // ...
+}
 
-    fn make_shared_with_config(
+impl<Args> BackendFactory<Args> for MySharedBackend<Args> {
+    type Backend = MyBackend<Args>;
+    type Error = MyError;
+
+    fn create_with_config(
         &mut self,
-        config: Self::Config,
-    ) -> Result<Self::Backend, Self::MakeError> {
+        config: <Self::Backend as BackendConfig>::Config,
+    ) -> Result<Self::Backend, Self::Error> {
         Ok(MyBackend::new(Arc::clone(&self.pool), config))
     }
 }
 ```
 
-The key pattern: the shared wrapper holds an `Arc` (or equivalent) to the resource, and each `make_shared_with_config` call clones only the reference — not the connection itself.
+The key pattern: the shared wrapper holds an `Arc` (or equivalent) to the resource, and each `create_with_config` call clones only the reference — not the connection itself.
+
+---
+
+## Migrating from `MakeShared`
+
+`BackendFactory` replaces `MakeShared`:
+
+| Before | After |
+|---|---|
+| `MakeShared<Args>` | `BackendFactory<Args>` |
+| `make_shared()` | `create()` |
+| `make_shared_with_config(cfg)` | `create_with_config(cfg)` |
+| `type MakeError` | `type Error` |
+| `type Config` on the factory | `BackendConfig::Config` on the backend |
 
 ---
 
@@ -209,8 +232,7 @@ The key pattern: the shared wrapper holds an `Arc` (or equivalent) to the resour
 
 | Method | When to use |
 |---|---|
-| `make_shared()` | Multiple workers, default configuration |
-| `make_shared_with_config(cfg)` | Multiple workers, per-worker tuning needed |
+| `create()` | Multiple workers, default configuration |
+| `create_with_config(cfg)` | Multiple workers, per-worker tuning needed |
 
-`MakeShared` is the idiomatic Apalis pattern for running several job queues against the same data store without multiplying connection overhead. Pair it with `tokio::try_join!` to run all workers concurrently from a single entry point.
-
+`BackendFactory` is the idiomatic Apalis pattern for running several job queues against the same data store without multiplying connection overhead. Pair it with `tokio::try_join!` to run all workers concurrently from a single entry point.

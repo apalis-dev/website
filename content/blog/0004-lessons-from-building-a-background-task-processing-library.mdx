@@ -1,0 +1,363 @@
+---
+title: "Lessons from Building a Background Task Processing Library"
+excerpt: "From actors to wakers: four years of evolving apalis taught us to split concerns, use event-driven wakeups, compose behavior, and reuse Rust’s existing abstractions."
+date: "2026-10-14"
+authors:
+  - name: Njuguna Mureithi
+    description: Core Maintainer
+    avatar: /images/geoff.jpg
+    twitter: https://twitter.com/mureithi_me
+relatedPosts:
+  - introducing-v1-2026-10-16
+---
+
+_From actors to wakers: the evolution of [apalis](https://github.com/apalis-dev/apalis), from v0.1 in 2022 to v1.0.0 in 2026._
+
+> Just use `tokio::spawn` bro! ~ **some guy on Reddit**
+
+Building a background task processing library is not just a matter of putting jobs in a queue and running them. You need a way to represent work, execute it reliably, and persist it until it is complete. The difficult part is deciding how those pieces fit together—and how much machinery the abstractions require.
+
+Over five years of developing apalis, the design moved through actor-based workers, large storage traits, stream-based backends, and finally a small polling interface that can be extended through composition and is modelled behind the `Stream` trait. Each stage solved real problems, but each also revealed assumptions that did not hold up as the library grew.
+
+Here are the lessons that shaped that evolution.
+
+## What a task library needs
+
+At a high level, a background task library has three core pieces:
+
+- **Task:** a unit of work to run later, with arguments, an identifier, attempts, and context.
+- **Worker:** something that runs tasks reliably, with concurrency control, shutdown, and restart behavior.
+- **Persistence:** somewhere durable to keep work, with operations to push, fetch, acknowledge, and retry tasks.
+
+It is tempting to start with persistence, because a queue is the most visible part of a background processing system. But the design challenge is not any one of these components in isolation. It is how they communicate—and how tightly coupled they become as a result.
+
+## 1. We started with workers as actors
+
+In apalis v0.1, the worker model used the actor tooling that was already available. A worker is a long-lived entity with state, and it receives jobs, so the actor model initially seemed like a natural fit.
+
+The code included concepts such as:
+
+```rust
+trait Worker: Send + Sized + 'static;
+
+struct Addr<A: Actor>;
+struct Recipient<M: Message>;
+
+impl<T, W> Handler<JobRequestWrapper<T>> for W {
+    // A job arrives as a message.
+}
+```
+
+The actor approach was not inherently wrong. It was simply broader than the problem required.
+
+A queue generally has one kind of message to deliver: a job. apalis was paying for addresses, recipients, and mailboxes without making meaningful use of those abstractions.
+
+The idea worth keeping was **supervision**. An `Arbiter` supervised workers, and that concept eventually informed the `Monitor`.
+
+**Lesson:** Borrow the idea you need, not an entire model just because it already exists in your stack.
+
+## 2. The fat trait era
+
+The next problem was the storage abstraction. In v0.3, `Storage` combined task persistence, delivery, and worker liveness in one trait. A simplified version looked like this:
+
+```rust
+trait Storage: Clone {
+    type Output: Job;
+
+    async fn push(..);
+    async fn schedule(.., on);
+    async fn consume(.., interval);
+    async fn ack(..);
+    async fn retry(..);
+    async fn kill(..);
+    async fn heartbeat(..);
+    async fn reschedule(..);
+    // ...and more
+}
+```
+
+The trait was responsible for too many concerns. Adding a backend meant implementing a large surface area, even when the backend only needed a subset of those capabilities. Later, `MessageQueue` arrived alongside `Storage`, leaving the project with two large traits rather than one clear boundary.
+
+The underlying issue was tight coupling: changing one concern could require changes across all backend implementations.
+
+**Lesson:** A trait should describe a coherent capability. When unrelated concerns share one trait, every implementation inherits the complexity whether it needs it or not.
+
+## 3. Fixed polling intervals are a trap
+
+The original storage interface also exposed a polling interval approach:
+
+```rust
+// Storage, v0.3
+fn consume(
+    &mut self,
+    worker_id: String,
+    interval: Duration,
+) -> JobStreamResult<Self::Output>;
+```
+
+This results with the database knowing how often to check for work, rather than being notified when work became available.
+
+That creates a familiar trade-off:
+
+- **Short interval:** the worker checks frequently, spending CPU and database resources looking at an empty queue.
+- **Long interval:** tasks can sit waiting for the next poll, adding latency.
+- **Either way:** the worker cannot necessarily react as soon as a task is pushed.
+
+This was the turning point in the design. Instead of asking, “How often should I check?”, the system needed a way to express, “Wake me when there is work.”
+
+## 4. Streams introduced a better backend model
+
+In v0.5.0-alpha, released in February 2024, `Backend` began to take shape around streams. Rather than exposing a large collection of storage operations, a backend could yield tasks through a stream:
+
+```rust
+// v0.5.0-alpha, February 2024
+trait Backend<Req> {
+    type Stream: Stream<
+        Item = Result<Option<Req>, Error>,
+    >;
+    type Layer;
+
+    fn layer(&self, worker: Worker) -> Self::Layer;
+    fn poll(self, worker: Worker) -> Poller<Self::Stream>;
+}
+```
+
+This was a meaningful shift. A backend could be treated as something that produces tasks, and streams could be passed around or composed. The futures ecosystem already supplied useful building blocks, including `Stream`, `Sink`, and Tower middleware.
+
+The `Layer` associated type also provided a way for the backend to decorate a worker service.
+
+**Lesson:** Reuse established abstractions when they already express the problem. Streams and sinks gave apalis a more familiar vocabulary than a bespoke task-delivery interface.
+
+## 5. Streams were not the whole answer
+
+The stream-based model worked, but the following versions exposed some limitations.
+
+The interface evolved over time:
+
+```rust
+// v0.5
+trait Backend<Req> {
+    type Stream: Stream<Item = Result<Option<Req>, Error>>;
+    type Layer;
+
+    fn poll(self, worker: Worker) -> Poller<Self::Stream>;
+}
+```
+
+```rust
+trait Backend<Req, Res> {
+    type Stream: Stream<Item = Result<Option<Req>, Error>>;
+    type Layer;
+
+    fn poll<Svc: Service<Req, Response = Res>>(
+        self,
+        worker: &Worker,
+    ) -> Poller<Self::Stream, Self::Layer>;
+}
+```
+
+```rust
+// v0.7
+trait Backend<Req> {
+    type Stream: Stream<Item = Result<Option<Req>, Error>>;
+    type Layer;
+    type Codec: Codec;
+
+    fn poll(
+        self,
+        worker: &Worker<Context>,
+    ) -> Poller<Self::Stream, Self::Layer>;
+}
+```
+
+Three issues became apparent:
+
+1. **Notifications were not guaranteed.** A backend without notification support could fall back to repeated polling calls.
+2. **The backend was consumed by `poll`.** Passing `self` by value made it difficult to react to an item being pushed while the worker was waiting.
+3. **The trait kept growing.** Each missing capability introduced another associated type or generic parameter.
+
+The stream abstraction was useful, and the library was running in production. The problem was that each limitation was being addressed by adding more pieces to the trait instead of revisiting the model itself.
+
+**Lesson:** When a trait keeps accumulating parameters to work around its limitations, it may be time to redesign the boundary rather than add another associated type.
+
+## 6. Wakers let workers sleep until work arrives
+
+The key shift was to use the polling model already provided by Rust's futures ecosystem.
+
+A simplified version of the idea looks like this:
+
+```rust
+// Sketch, not the actual implementation.
+fn poll_next(&mut self, cx, worker) {
+    if let Some(task) = self.take_ready() {
+        return Poll::Ready(Some(Ok(task)));
+    }
+
+    self.register(cx.waker());
+    Poll::Pending
+}
+```
+
+When there is no task available, the backend registers the current waker and returns `Poll::Pending`. It does not need to keep checking the queue on a timer.
+
+When a task is pushed, the notification wakes the registered waker. The executor polls the backend again, and the task can flow out.
+
+Think of the difference between checking a door every minute and waiting for a doorbell. The doorbell tells you when to act; repeated checking spends effort even when nothing has changed.
+
+This approach removes the need for a timer-driven loop just to discover newly available work. An idle queue can remain idle without generating a stream of empty checks.
+
+**Lesson:** Prefer event-driven wakeups over polling loops when the system can notify you that its state has changed.
+
+## 7. The standalone `Backend` in v1.0
+
+By v1.0.0, the backend interface had been reduced to three methods:
+
+```rust
+trait Backend: Sized {
+    type Task;
+    type Error;
+
+    fn poll_ready(
+        &mut self,
+        cx,
+        worker,
+    ) -> Poll<Result<(), Self::Error>>;
+
+    fn poll_next(
+        &mut self,
+        cx,
+        worker,
+    ) -> Poll<Option<Result<Self::Task, Self::Error>>>;
+
+    fn poll_close(
+        &mut self,
+        cx,
+        worker,
+    ) -> Poll<Result<(), Self::Error>>;
+}
+```
+
+Each method has a distinct responsibility:
+
+- **`poll_ready`:** determine whether the backend can accept or provide work now.
+- **`poll_next`:** yield a task, report the end of the stream, return an error, or remain pending until work is available.
+- **`poll_close`:** finish the backend's work as the worker shuts down.
+
+Other concerns moved out of the core trait. Configuration belongs in `BackendConfig`, encoding in `WireFormatBackend`, and pushing tasks in `TaskSink`.
+
+Compared with the earlier `Storage` trait, this is a much smaller boundary. The backend focuses on its polling lifecycle, while other capabilities can be added separately.
+
+## 8. Control through composition
+
+A small core trait does not mean giving up flexibility. apalis v1.0 provides backend extensions that wrap a backend and add behavior:
+
+```text
+backend/ext/
+  poll_strategy/  // interval, backoff, future, stream
+  lifecycle/      // before_start ... after_stop
+  wake_on_push
+  with_codec
+  instrument
+  map_err
+  inspect_err
+  interleave
+  shared
+  pipe
+  delegate
+```
+
+Each extension can add a focused behavior without forcing the core `Backend` trait to absorb it.
+
+For example, polling strategy can be handled by a wrapper, lifecycle hooks can be added around startup and shutdown, and error mapping can be composed without changing every backend. A wrapper such as `wake_on_push` can provide the notification behavior that was awkward to express in the stream-era interface.
+
+This changes the way new capabilities are introduced. Instead of adding another flag or method to a central abstraction, behavior can be layered where it is needed.
+
+**Lesson:** Compose behavior around a small interface. Keep the core focused, and make optional behavior reusable.
+
+## 9. Tasks evolved from a trait to plain data
+
+The task representation changed along with the backend.
+
+In v0.3, a job had to implement a `Job` trait with a static name:
+
+```rust
+// v0.3
+trait Job {
+    const NAME: &'static str;
+}
+```
+
+By v0.6, the model used a request with arguments and parts:
+
+```rust
+// v0.6
+struct Request<Args, Ctx> {
+    pub args: Args,
+    pub parts: Parts<Ctx>,
+}
+```
+
+A later beta version made the task identifier configurable through a generic parameter:
+
+```rust
+// v1.0.0-beta.1
+struct Task<Args, Context, IdType = RandomId> {
+    pub args: Args,
+    pub parts: Parts<Context, IdType>,
+}
+```
+
+In v1.0.0, the public task shape became simpler:
+
+```rust
+// v1.0.0
+struct Task<Args> {
+    pub args: Args,
+    ctx: Arc<ExecutionContext>,
+}
+```
+
+The required `Job` trait was removed. In v0.6, naming moved to namespaces and the payload could be represented as plain arguments. Later, backend-specific context moved behind a shared execution context, and metadata became a key-value store.
+
+The result is that a handler can be an async function over an application-defined struct, rather than requiring every payload to implement a library-specific trait.
+
+**Lesson:** Do not require a trait implementation when ordinary data is enough. Removing unnecessary generic parameters and required traits can make an API easier to adopt.
+
+## 10. Workers: Tower, dependency injection, and shutdown
+
+The worker API brings together the backend, application dependencies, middleware, and handler:
+
+```rust
+WorkerBuilder::new("email-worker")
+    .backend(storage)
+    .data(pool)        // injected dependency
+    .layer(retry)      // Tower middleware
+    .build(send_email); // plain async function
+```
+
+This design has a few important properties:
+
+- **Middleware:** a worker is a Tower service, so retries, timeouts, and tracing can be expressed as layers.
+- **Dependency injection:** `data(...)` lets handlers receive the dependencies they need instead of relying on globals.
+- **Production lifecycle:** `Monitor` provides controls such as `shutdown_timeout` and `should_restart`, while `WorkerContext` exposes pause, resume, and stop operations.
+
+A background worker is more than a loop that calls a handler. It needs to be observable, controllable, and capable of shutting down gracefully. It may also need to restart after a failure without requiring the application to reinvent supervision.
+
+The worker API aims to make those concerns composable rather than mixing them into the task payload or storage abstraction.
+
+## What four years taught us
+
+The evolution from apalis v0.1 to v1.0.0 left us with four lessons:
+
+1. **Split the concerns.** A fat trait couples unrelated capabilities and makes every implementation pay for them.
+2. **Wake, do not poll.** Let the runtime tell a worker when there is work to do.
+3. **Compose, do not configure.** Wrappers can add focused behavior without expanding the central abstraction.
+4. **Reuse what exists.** Rust already provides useful abstractions in `Stream`, `Sink`, futures, and Tower.
+
+None of these changes came from finding a perfect design on the first try. Each emerged from a model that worked, a limitation that became visible, and a redesign that tried to make the boundary clearer.
+
+That is the broader lesson of building infrastructure: the goal is not to eliminate every abstraction, but to keep each abstraction responsible for one thing—and make the pieces fit together without forcing them to know too much about one another.
+
+---
+
+_apalis evolved from v0.1 in 2022 to v1.0.0 in 2026. Explore the project and its implementation in the [apalis repository](https://github.com/apalis-dev/apalis)._

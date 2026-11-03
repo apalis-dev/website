@@ -11,27 +11,10 @@ Effective state management is crucial for building robust task processing system
 
 Understanding when and how to use each approach will help you build more maintainable and efficient task processing systems.
 
-## Execution Context
+## Task Context
 
-Execution Context represents backend-specific metadata that travels with each task request. This context is defined by the backend implementation and provides essential information about the task's lifecycle, execution state, and backend-specific properties.
+Execution Context represents backend-specific metadata that travels with each task request. This context provides essential information about the task's lifecycle, execution state, and backend-specific properties.
 
-Each backend in Apalis specifies its own context type through the generic `Backend<Args, Ctx>` trait. This allows different storage backends to provide relevant metadata while maintaining a consistent interface.
-
-### Postgres Example
-
-The PostgreSQL backend provides rich context information for task management:
-
-```rust
-pub struct PgContext {
-    run_at: DateTime<Utc>,      // When the task should be executed
-    max_attempts: i32,          // Maximum retry attempts allowed
-    last_error: Option<String>, // Last error message if failed
-    lock_at: Option<i64>,       // When the task was locked for processing
-    lock_by: Option<WorkerId>,  // Which worker has locked this task
-    done_at: Option<i64>,       // When the task completed
-    priority: i32,              // Task priority for scheduling
-}
-```
 
 ### Backend Context
 
@@ -39,28 +22,34 @@ You can access backend context provided the relevant backend you are using eg:
 
 The following types can be accessed as part of the task state:
 
-- [`Attempt`](https://docs.rs/apalis-core/1.0.0-rc.7/apalis_core/task/attempt/index.html) : The current attempt
-- [`TaskId`](https://docs.rs/apalis-core/1.0.0-rc.7/apalis_core/task/task_id/index.html) : The current tasks id
+- [`Attempt`](https://docs.rs/apalis-core/1.0.0/apalis_core/task/attempt/index.html) : The current attempt
+- [`TaskId`](https://docs.rs/apalis-core/1.0.0/apalis_core/task/task_id/index.html) : The current tasks id
 
-```rust name="backend_context" mode="inline"
+```rust name="task_context" mode="inline"
 async fn process(
     _: Email,
-    context: PgContext,
-//    meta: Meta<TracingContext>
+    task: TaskContext,
 ) -> Result<(), EmailError> {
-
-    // Make decisions based on context
-    if context.priority() > 5 {
-        // Handle high-priority tasks differently
-        return Ok(());
-    }
-    
+    tokio::spawn(async move {
+        // Wait for either cancellation or completion
+        tokio::select! {
+            _ = task.executed() => {
+                // The task was complete
+                
+            }
+            _ = tokio::time::sleep(std::time::Duration::from_secs(10)) => {
+                    unreachable!("Task should be cancelled")
+            }
+        }
+    });
+    // simulate work
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
     // Regular task processing
     Ok(())
 }
 ```
 
-## State with [`Data<T>`](https://docs.rs/apalis-core/1.0.0-rc.7/apalis_core/task/data/index.html)
+## State with [`Data<T>`](https://docs.rs/apalis-core/1.0.0/apalis_core/task/data/index.html)
 
 `Data<T>` provides a way to share application-wide state across all task handlers. This is ideal for configuration, database connections, external service clients, and other resources that should be shared across your application.
 
@@ -242,7 +231,7 @@ use apalis_postgres::*;
 use std::sync::Arc;
 
 
-// [!code inline:backend_context]
+// [!code inline:task_context]
 
 // [!code inline:with_state]
 

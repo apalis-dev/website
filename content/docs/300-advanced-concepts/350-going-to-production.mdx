@@ -29,8 +29,8 @@ PostgreSQL is preferred when job durability, transactional guarantees, and the a
 ```toml
 # Cargo.toml
 [dependencies]
-apalis = { version = "1.0.0-rc.4" }
-apalis-postgres = { version = "1.0.0-rc.4" }
+apalis = { version = "1" }
+apalis-postgres = { version = "1" }
 ```
 
 ```rust
@@ -288,7 +288,7 @@ WorkerBuilder::new("email-worker")
 With the `prometheus` feature, apalis can expose job metrics (job counts, durations, failures):
 
 ```toml
-apalis = { version = "1.0.0-rc.4", features = ["prometheus"] }
+apalis = { version = "1", features = ["prometheus"] }
 ```
 
 ```rust
@@ -306,7 +306,7 @@ Expose a `/metrics` endpoint using your HTTP server (e.g., Axum or Actix-web) th
 ### Sentry Integration
 
 ```toml
-apalis = { version = "1.0.0-rc.4", features = ["sentry"] }
+apalis = { version = "1", features = ["sentry"] }
 ```
 
 ```rust
@@ -327,8 +327,8 @@ WorkerBuilder::new("email-worker")
 Protect downstream services and comply with third-party API rate limits using the `RateLimitLayer`:
 
 ```toml
-apalis = { version = "1.0.0-rc.4", features = ["limit"] }
-tower = { version = "0.4", features = ["limit"] }
+apalis = { version = "1", features = ["limit"] }
+tower = { version = "0.5", features = ["limit"] }
 ```
 
 ```rust
@@ -356,8 +356,8 @@ WorkerBuilder::new("sendgrid-worker")
 Apalis Board is an optional web UI for monitoring and managing jobs. It provides a real-time view of queued, running, failed, and completed jobs.
 
 ```toml
-apalis-board = { version = "1.0.0-rc.4" }
-apalis-board-api = { version = "1.0.0-rc.4" }
+apalis-board = { version = "1" }
+apalis-board-api = { version = "1" }
 ```
 
 Integrate it with an Axum-based HTTP server:

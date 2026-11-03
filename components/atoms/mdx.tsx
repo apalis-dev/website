@@ -7,8 +7,7 @@ import * as Callouts from "@/components/docs/components/callouts"
 import { Steps } from "@/components/docs/components/steps"
 import { Pre } from "../docs/components/pre"
 import { CodeOutput } from "../docs/components/code-output"
-import * as ReactTweet from "react-tweet"
-import * as ReactTwitchEmbed from "react-twitch-embed"
+
 
 const YouTube = ({ url }: { url: string }) => (
   <div className="video-container">
@@ -20,24 +19,6 @@ const YouTube = ({ url }: { url: string }) => (
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
       allowFullScreen
     />
-  </div>
-)
-
-const Tweet = ({ id }: { id: string }) => (
-  <div className="tweet">
-    <ReactTweet.Tweet id={id} />
-  </div>
-)
-
-const TwitchClip = ({ clip }: { clip: string }) => (
-  <div>
-    <ReactTwitchEmbed.TwitchClip clip={clip} autoplay={false} />
-  </div>
-)
-
-const TwitchPlayerNonInteractive = ({ video }: { video: string }) => (
-  <div>
-    <ReactTwitchEmbed.TwitchPlayerNonInteractive video={video} autoplay={false} />
   </div>
 )
 
@@ -57,10 +38,7 @@ export const MDX: React.FC<{ content: string }> = ({ content }) => {
           Steps,
           ...Callouts,
           CodeOutput,
-          Tweet,
-          YouTube,
-          TwitchClip,
-          TwitchPlayerNonInteractive
+          YouTube
         }}
       />
     </div>

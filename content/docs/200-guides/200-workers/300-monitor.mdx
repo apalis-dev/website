@@ -60,20 +60,21 @@ Multiple workers can be registered and run concurrently. Each worker can have it
 Use `.on_event()` to receive lifecycle events from all registered workers. This is useful for centralized logging or metrics:
 
 ```rust
-.on_event(|ctx, ev| {
-    info!("Received {} event from {} Worker", ev, ctx.name());
+.on_event(|wrk, ev| {
+    info!("Received {} event from {} Worker", ev, wrk.name());
 })
 ```
 
-`ctx.name()` returns the worker's name, and `ev` describes the event (e.g. task started, completed, or failed).
+`wrk.name()` returns the worker's name, and `ev` describes the event (e.g. task started, completed, or failed).
 
 ## Restarting Workers
 
 Use `.should_restart()` to define when a worker should be restarted after a failure. The closure receives the worker context, the error, and the number of times the worker has already been restarted:
 
 ```rust
-.should_restart(|ctx, err, runs| {
-    if ctx.name() == "tasty-pear"
+.should_restart(|wrk, err| {
+    let runs = wrk.restarts();
+    if wrk.name() == "tasty-pear"
         && err.to_string().contains("Recoverable Error")
         && runs < 5
     {
@@ -136,11 +137,12 @@ async fn main() -> Result<(), BoxDynError> {
                 .backend(pear_backend.clone())
                 .build(send_email)
         })
-        .on_event(|ctx, ev| {
-            info!("Received {} event from {} Worker", ev, ctx.name());
+        .on_event(|wrk, ev| {
+            info!("Received {} event from {} Worker", ev, wrk.name());
         })
-        .should_restart(|ctx, err, runs| {
-            if ctx.name() == "tasty-pear"
+        .should_restart(|wrk, err| {
+            let runs = wrk.restarts();
+            if wrk.name() == "tasty-pear"
                 && err.to_string().contains("Recoverable Error")
                 && runs < 5
             {

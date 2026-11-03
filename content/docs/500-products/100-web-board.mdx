@@ -34,10 +34,10 @@ bottomNavigation: pagination
 Add `apalis-board` to your `Cargo.toml` and enable the feature for your HTTP framework:
 ```toml
 # For Actix Web
-apalis-board = { version = "1.0.0-rc.6", features = ["actix"] }
+apalis-board = { version = "1", features = ["actix"] }
 
 # For Axum
-apalis-board = { version = "1.0.0-rc.6", features = ["axum"] }
+apalis-board = { version = "1", features = ["axum"] }
 ```
 
 Each release of `apalis-board` bundles a matching version of the compiled frontend — no separate frontend build step is required for standard use.
@@ -117,7 +117,7 @@ Backends marked ✅ support all dashboard features including task browsing, metr
 
 If you are building a Leptos frontend and want to embed the board UI — in full or as a component within a larger interface — enable the `web` feature instead:
 ```toml
-apalis-board = { version = "1.0.0-rc.6", features = ["web"] }
+apalis-board = { version = "1", features = ["web"] }
 ```
 
 This gives you access to `apalis-board-web` components that can be composed into your own Leptos views.

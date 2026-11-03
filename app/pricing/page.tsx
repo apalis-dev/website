@@ -10,7 +10,7 @@ const comparisonTable = [
   {
     category: 'Core Functionality',
     features: [
-      { name: 'Job Queues', free: true, pro: true, ultra: true },
+      { name: 'Multiple Queues', free: true, pro: true, ultra: true },
       { name: 'Multiple Backends', free: true, pro: true, ultra: true },
       { name: 'Job Scheduling (Cron)', free: true, pro: true, ultra: true },
       { name: 'Realtime Web UI', free: true, pro: true, ultra: true },
@@ -22,18 +22,19 @@ const comparisonTable = [
     features: [
       { name: 'Concurreny', free: true, pro: true, ultra: true },
       { name: 'Rate Limitting', free: true, pro: true, ultra: true },
-      { name: 'Batch Processing', free: false, pro: true, ultra: true },
+      { name: 'Batch Processing', free: "Not Guaranteed", pro: true, ultra: true },
       { name: 'Bulk Job Inserts', free: "Not Guaranteed", pro: true, ultra: true },
-      { name: 'Pausable/Resumable Queues', free: false, pro: true, ultra: true },
+      { name: 'Pausable/Resumable Workers', free: true, pro: true, ultra: true },
     ],
   },
   {
     category: 'Advanced Features',
     features: [
-      { name: 'Job Prioritization', free: false, pro: true, ultra: true },
+      { name: 'Job Prioritization', free: true, pro: true, ultra: true },
       { name: 'Dead Letter Queue Handling', free: false, pro: true, ultra: true },
       { name: 'Custom Job Middleware', free: true, pro: true, ultra: true },
-      { name: 'Encryption at Rest', free: false, pro: false, ultra: true },
+      { name: 'Encryption', free: false, pro: true, ultra: true },
+      { name: 'Compression', free: false, pro: true, ultra: true },
       { name: 'Advanced Workflow Coordination', free: false, pro: false, ultra: true },
     ],
   },
@@ -45,7 +46,7 @@ const comparisonTable = [
       { name: 'Performance Metrics', free: false, pro: true, ultra: true },
       { name: 'Scoped Web UI', free: false, pro: true, ultra: true },
       { name: 'Authentication on Web UI', free: false, pro: true, ultra: true },
-      { name: 'Custom Telemetry Backends', free: false, pro: true, ultra: true },
+      { name: 'Custom Telemetry Backends', free: false, pro: false, ultra: true },
       { name: 'Logs Retention (months)', free: false, pro: '1', ultra: '3+' },
     ],
   },
@@ -62,8 +63,8 @@ const comparisonTable = [
   {
     category: 'Customization & Enterprise',
     features: [
-      { name: 'Custom Feature Requests', free: false, pro: true, ultra: true },
-      { name: 'Custom Telemetry', free: false, pro: true, ultra: true },
+      { name: 'Custom Feature Requests', free: false, pro: false, ultra: true },
+      { name: 'Custom Telemetry', free: false, pro: false, ultra: true },
       { name: 'Collaborative Coding Sessions', free: false, pro: false, ultra: true },
       { name: 'Priority Feature requests', free: false, pro: false, ultra: true },
     ],

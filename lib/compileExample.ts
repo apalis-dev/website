@@ -3,6 +3,7 @@ import { execSync } from "child_process";
 import { join } from "path";
 import { writeFileSync, unlinkSync, mkdirSync, existsSync, readFileSync } from "fs";
 import { createHash } from "crypto";
+import { console } from "node:inspector/promises";
 
 const EXAMPLES_PATH = "examples";
 
@@ -314,7 +315,13 @@ export function reremarkExampleCompiler(options: CompilerOptions = {}) {
       console.log(`Using cached result (hash: ${hash.substring(0, 8)}...)`);
     }
 
-    if (!compilationResult.success) console.error(compilationResult.errors);
+    if (!compilationResult.success) {
+      if (process.env.NODE_ENV == "production") {
+        throw compilationResult.errors
+      } else {
+        console.warn(compilationResult.errors)
+      }
+    };
 
     const resultStatus = compilationResult.success ? "Success" : "Fail";
     if (compileBlock.node.meta.includes('compile-result=')) {

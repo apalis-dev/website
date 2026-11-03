@@ -6,7 +6,7 @@ bottomNavigation: pagination
 
 A stepped **workflow** in Apalis is a sequential pipeline of async steps executed as a single unit of work. Each step receives the output of the previous one, transforming data as it flows through the chain. This is the right tool when a job involves multiple discrete stages — extraction, validation, enrichment, side effects — that must run in order.
 
-Workflows are built with the [`Workflow`] type from `apalis_workflow` and run inside a standard [`WorkerBuilder`] — so all the usual machinery (heartbeating, middleware, event hooks) applies without any special handling.
+Workflows are built with the [`SteppedFlow`] type from `apalis_workflow` and run inside a standard [`WorkerBuilder`] — so all the usual machinery (heartbeating, middleware, event hooks) applies without any special handling.
 
 ---
 
@@ -18,7 +18,7 @@ use apalis_file_storage::JsonStorage;
 
 #[tokio::main]
 async fn main() {
-    let workflow = Workflow::new("odd-numbers-workflow")
+    let workflow = SteppedFlow::new("odd-numbers-workflow")
         .and_then(|a: usize| async move {
             Ok::<_, BoxDynError>((0..a).collect::<Vec<_>>())
         })

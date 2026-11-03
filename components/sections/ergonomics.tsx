@@ -97,7 +97,7 @@ struct Email {
 async fn send_email(task: Email) {
     // Do something
 }
-    
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let worker = WorkerBuilder::new("rango-tango")
@@ -124,7 +124,7 @@ async fn main() -> Result<()> {
 async fn send_email(task: Email) -> Result<(), MyError> {
     Ok(())
 }
-    
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let worker = WorkerBuilder::new("rango-tango")
@@ -156,7 +156,7 @@ async fn main() -> Result<()> {
 async fn send_email(task: Email) {
     // Do something
 }
-    
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let worker = WorkerBuilder::new("rango-tango")
@@ -187,7 +187,7 @@ async fn main() -> Result<()> {
 async fn send_email(task: Email) {
     // Do something
 }
-    
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let worker = WorkerBuilder::new("rango-tango")
@@ -218,7 +218,7 @@ async fn main() -> Result<()> {
 #[tokio::main]
 async fn main() -> Result<()> {
 
-    let workflow = Workflow::new("product-image-workflow")
+    let workflow = SteppedFlow::new("product-image-workflow")
        .and_then(generate_thumbnail)
        .and_then(extract_items)
        .filter_map(classify_and_recognise)

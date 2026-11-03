@@ -6,7 +6,7 @@ bottomNavigation: pagination
 
 A **DAG workflow** (Directed Acyclic Graph) is a step beyond sequential pipelines. Rather than running every step one after another, a DAG lets you declare *which steps depend on which* — independent steps run in parallel, and dependent steps wait only for their specific inputs to be ready. This makes DAGs the right model for workflows where some work can be parallelised.
 
-`DagFlow` is provided by the `apalis_workflow` crate. Like [`Workflow`](/docs/guides/workflows/sequential-workflow), it runs inside a standard [`WorkerBuilder`] — so heartbeating, tracing, middleware, and event hooks all work unchanged.
+`GraphFlow` is provided by the `apalis_workflow` crate. Like [`Workflow`](/docs/guides/workflows/sequential-workflow), it runs inside a standard [`WorkerBuilder`] — so heartbeating, tracing, middleware, and event hooks all work unchanged.
 
 ---
 
@@ -32,7 +32,7 @@ Use a DAG when branches of your workflow have no data dependency on each other a
 ```rust
 use apalis::prelude::*;
 use apalis_file_storage::JsonStorage;
-use apalis_workflow::{DagFlow, WorkflowSink};
+use apalis_workflow::{GraphFlow, WorkflowSink};
 
 async fn get_name(user_id: u32) -> Result<String, BoxDynError> {
     Ok(user_id.to_string())
@@ -63,14 +63,14 @@ async fn main() -> Result<(), BoxDynError> {
     backend.push_start(vec![42, 43, 44]).await.unwrap();
 
     // Declare the graph.
-    let dag_flow = DagFlow::new("user-etl-workflow");
+    let dag_flow = GraphFlow::new("user-etl-workflow");
 
-    let get_name    = dag_flow.node(get_name);
-    let get_age     = dag_flow.node(get_age);
-    let get_address = dag_flow.node(get_address);
+    let get_name    = dag_flow.add_task(get_name);
+    let get_age     = dag_flow.add_task(get_age);
+    let get_address = dag_flow.add_task(get_address);
 
     dag_flow
-        .node(collector)
+        .add_task(collector)
         .depends_on((&get_name, &get_age, &get_address));
 
     // Validate that the graph is acyclic and all dependencies are satisfiable.
@@ -99,11 +99,11 @@ async fn main() -> Result<(), BoxDynError> {
 
 A **node** is a single async function registered with the DAG. Every node receives the same **starting input** that was pushed via `push_start` — unless it declares dependencies, in which case it receives the *outputs* of those dependencies instead.
 ```rust
-let dag_flow = DagFlow::new("user-etl-workflow");
+let dag_flow = GraphFlow::new("user-etl-workflow");
 
-let get_name    = dag_flow.node(get_name);    // receives: u32
-let get_age     = dag_flow.node(get_age);     // receives: u32
-let get_address = dag_flow.node(get_address); // receives: u32
+let get_name    = dag_flow.add_task(get_name);    // receives: u32
+let get_age     = dag_flow.add_task(get_age);     // receives: u32
+let get_address = dag_flow.add_task(get_address); // receives: u32
 ```
 
 Nodes without dependencies are **root nodes** — they run first, in parallel, each receiving the original input.
@@ -113,7 +113,7 @@ Nodes without dependencies are **root nodes** — they run first, in parallel, e
 A node declares its inputs by calling `.depends_on(...)` with a tuple of node references. The node will not execute until all listed dependencies have completed successfully.
 ```rust
 dag_flow
-    .node(collector)
+    .add_task(collector)
     .depends_on((&get_name, &get_age, &get_address));
 ```
 
@@ -123,7 +123,7 @@ This is enforced at compile time — a mismatch in types or arity is a compiler 
 
 ### Execution Order
 
-`DagFlow` determines execution order from the dependency graph, not from the order nodes are declared. Given the example above:
+`GraphFlow` determines execution order from the dependency graph, not from the order nodes are declared. Given the example above:
 
 1. `get_name`, `get_age`, and `get_address` all start concurrently — they share the same `u32` input and have no dependencies on each other.
 2. Once all three complete, `collector` runs with their combined outputs as a tuple.
@@ -134,7 +134,7 @@ If any node returns an `Err`, dependent nodes are not run and the workflow task 
 
 ## Validation
 
-Before running a `DagFlow`, call `validate()` to catch structural problems early:
+Before running a `GraphFlow`, call `validate()` to catch structural problems early:
 ```rust
 dag_flow.validate()?;
 ```
@@ -151,7 +151,7 @@ Validation checks that:
 
 ## Inspecting the Graph
 
-`DagFlow` implements `Display` and outputs the graph in [DOT format](https://graphviz.org/doc/info/lang.html), which can be rendered with Graphviz or pasted into an online viewer:
+`GraphFlow` implements `Display` and outputs the graph in [DOT format](https://graphviz.org/doc/info/lang.html), which can be rendered with Graphviz or pasted into an online viewer:
 ```rust
 info!("Executing workflow:\n{}", dag_flow);
 ```
@@ -189,21 +189,21 @@ All root nodes receive the same starting value for each run. Runs are independen
 | Situation | Recommended approach |
 |---|---|
 | Steps must run in strict order, each depending on the last | [`Workflow`](/docs/guides/workflows/sequential-workflow) with `and_then` |
-| Some steps are independent and can run in parallel | `DagFlow` |
-| You need fan-out followed by a merge/collect step | `DagFlow` with a collector node |
-| The graph structure changes at runtime | `DagFlow` — build the graph dynamically before `validate()` |
+| Some steps are independent and can run in parallel | `GraphFlow` |
+| You need fan-out followed by a merge/collect step | `GraphFlow` with a collector node |
+| The graph structure changes at runtime | `GraphFlow` — build the graph dynamically before `validate()` |
 | Simple linear ETL pipeline | [`Workflow`](/docs/guides/workflows/sequential-workflow) — less overhead |
 
 ---
 
 ## Summary
 
-`DagFlow` brings structured parallelism to Apalis workflows. You declare nodes, wire up dependencies, and let the runtime figure out what can run concurrently:
+`GraphFlow` brings structured parallelism to Apalis workflows. You declare nodes, wire up dependencies, and let the runtime figure out what can run concurrently:
 ```
-DagFlow::new(name)
+GraphFlow::new(name)
   │
-  ├── .node(fn)              →  register an async function as a node
-  ├── .node(fn)
+  ├── .add_task(fn)              →  register an async function as a node
+  ├── .add_task(fn)
   │     .depends_on((a, b))  →  declare typed inputs from other nodes
   │
   ├── .validate()            →  assert the graph is well-formed
@@ -211,4 +211,3 @@ DagFlow::new(name)
 ```
 
 The result plugs directly into a [`WorkerBuilder`] — no special runner, no separate scheduler, no additional infrastructure.
-
