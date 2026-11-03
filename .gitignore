@@ -18,3 +18,4 @@ sqlite.db
 # CJS files
 .tmp*
 .tmp-2fa-test.cjs
+.DS_Store

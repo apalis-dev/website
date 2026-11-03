@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "rm -rf .contentlayer/.cache",
     "build": "NODE_ENV=production next build",
     "start": "next start"
   },
