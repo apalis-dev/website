@@ -77,6 +77,7 @@ export default async function Page({
             variant="ghost"
             size="icon"
             className="mt-1"
+            nativeButton={false}
             render={<Link href="/dashboard/tickets" />}
           >
             <ArrowLeftIcon className="size-4" />

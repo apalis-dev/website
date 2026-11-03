@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { useOrganizationList } from "@clerk/nextjs";
+import { useAuth, useOrganizationList } from "@clerk/nextjs";
 import { toast } from "sonner";
 
 import type { Workspace, WorkspaceSummary } from "@/lib/dashboard/types";
@@ -24,6 +24,8 @@ interface WorkspaceContextValue {
   remainingMembers: number;
   canCreateApp: boolean;
   canInviteMember: boolean;
+  canManageMembers: boolean;
+  currentMemberRole: Workspace["members"][number]["role"] | null;
   switchingWorkspaceId: string | null;
   switchWorkspace: (workspaceId: string) => Promise<void>;
 }
@@ -42,6 +44,7 @@ export function WorkspaceProvider({
   children,
 }: WorkspaceProviderProps) {
   const router = useRouter();
+  const { userId } = useAuth();
   const { isLoaded, setActive } = useOrganizationList();
   const [pendingWorkspaceId, setPendingWorkspaceId] = useState<string | null>(
     null
@@ -106,10 +109,16 @@ export function WorkspaceProvider({
     workspace.subscription.plan === "Free" || workspace.subscription.seats === 0
       ? getWorkspaceLimits(workspace.plan).includedSeats
       : workspace.subscription.seats;
+  const occupiedMemberSeats =
+    workspace.members.length + workspace.pendingInvitations.length;
   const remainingMemberSlots = Math.max(
     0,
-    purchasedMemberSeats - workspace.members.length
+    purchasedMemberSeats - occupiedMemberSeats
   );
+  const currentMemberRole =
+    workspace.members.find((member) => member.id === userId)?.role ?? null;
+  const canManageMembers =
+    currentMemberRole === "owner" || currentMemberRole === "admin";
 
   const value: WorkspaceContextValue = {
     workspace,
@@ -120,6 +129,8 @@ export function WorkspaceProvider({
     remainingMembers: remainingMemberSlots,
     canCreateApp: canCreateAppForWorkspace(workspace),
     canInviteMember: remainingMemberSlots > 0,
+    canManageMembers,
+    currentMemberRole,
     switchingWorkspaceId,
     switchWorkspace,
   };

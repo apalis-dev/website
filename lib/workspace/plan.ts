@@ -56,6 +56,44 @@ export function isPaidPlan(plan: WorkspacePlan): boolean {
   return plan !== "Free";
 }
 
+interface SubscriptionItemIdentity {
+  status?: string | null;
+  plan?: {
+    slug?: string | null;
+    name?: string | null;
+    isDefault?: boolean;
+    fee?: { amount?: number } | null;
+  } | null;
+}
+
+/**
+ * The default Free plan item cannot be canceled through Clerk Billing. When a
+ * workspace is deleted we only need to end paid items; the Free item goes away
+ * with the organization.
+ */
+export function isCancelablePaidSubscriptionItem(
+  item: SubscriptionItemIdentity
+): boolean {
+  if (item.status !== "active" && item.status !== "past_due") {
+    return false;
+  }
+
+  if (item.plan?.isDefault) {
+    return false;
+  }
+
+  if ((item.plan?.fee?.amount ?? 0) > 0) {
+    return true;
+  }
+
+  return (
+    resolveWorkspacePlan({
+      slug: item.plan?.slug,
+      name: item.plan?.name,
+    }) !== "Free"
+  );
+}
+
 export function mapSubscriptionStatus(
   status: string | null | undefined
 ): SubscriptionStatus {

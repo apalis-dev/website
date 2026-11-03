@@ -144,6 +144,7 @@ export default async function Page({
           <Button
             variant="outline"
             size="sm"
+            nativeButton={false}
             render={<Link href="/dashboard/billing" />}
           >
             Manage workspace billing

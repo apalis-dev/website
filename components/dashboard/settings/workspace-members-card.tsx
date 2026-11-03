@@ -3,10 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { LoaderCircle, MailPlusIcon, UserMinusIcon } from "lucide-react";
+import { LoaderCircle, MailPlusIcon, UserMinusIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { inviteWorkspaceMemberAction, removeWorkspaceMemberAction } from "@/app/dashboard/settings/actions";
+import {
+  inviteWorkspaceMemberAction,
+  removeWorkspaceMemberAction,
+  revokeWorkspaceInvitationAction,
+} from "@/app/dashboard/settings/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +30,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type {
+  WorkspaceInvitation,
+  WorkspaceMember,
+} from "@/lib/dashboard/types";
 import { useWorkspace } from "@/lib/dashboard/workspace-context";
 import { getWorkspaceLimits } from "@/lib/workspace/policy";
 import { getErrorMessage } from "./utils";
@@ -48,21 +56,33 @@ function getInitials(name: string) {
 
 export function WorkspaceMembersCard() {
   const { userId } = useAuth();
-  const { workspace, canInviteMember } = useWorkspace();
+  const {
+    workspace,
+    canInviteMember,
+    canManageMembers,
+    currentMemberRole,
+  } = useWorkspace();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<InviteRole>("org:member");
   const [inviting, setInviting] = useState(false);
   const [invitingError, setInvitingError] = useState<string | null>(null);
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
+  const [revokingInvitationId, setRevokingInvitationId] = useState<
+    string | null
+  >(null);
 
-  const isAdmin =
-    workspace.members.find((member) => member.id === userId)?.role ===
-    "admin";
   const memberLimit =
     workspace.subscription.plan === "Free" || workspace.subscription.seats === 0
       ? getWorkspaceLimits(workspace.plan).includedSeats
       : workspace.subscription.seats;
+  const pendingInvitationCount = workspace.pendingInvitations.length;
+  const reservedSeats = workspace.members.length + pendingInvitationCount;
+  const canRemoveMember = (member: WorkspaceMember) =>
+    canManageMembers &&
+    member.id !== userId &&
+    member.role !== "owner" &&
+    (currentMemberRole === "owner" || member.role === "member");
 
   const handleInvite = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -94,7 +114,9 @@ export function WorkspaceMembersCard() {
       setInvitingError(
         getErrorMessage(inviteError, "We couldn't send this invitation.")
       );
-      toast.error(getErrorMessage(inviteError, "We couldn't send this invitation."));
+      toast.error(
+        getErrorMessage(inviteError, "We couldn't send this invitation.")
+      );
     } finally {
       setInviting(false);
     }
@@ -123,12 +145,39 @@ export function WorkspaceMembersCard() {
     }
   };
 
+  const handleRevokeInvitation = async (invitation: WorkspaceInvitation) => {
+    setRevokingInvitationId(invitation.id);
+
+    try {
+      const result = await revokeWorkspaceInvitationAction({
+        invitationId: invitation.id,
+      });
+
+      if (!result.ok) {
+        throw new Error(result.error);
+      }
+
+      toast.success(`Invitation for ${invitation.email} was revoked.`);
+      router.refresh();
+    } catch (revokeError) {
+      toast.error(
+        getErrorMessage(revokeError, "We couldn't revoke this invitation.")
+      );
+    } finally {
+      setRevokingInvitationId(null);
+    }
+  };
+
   return (
     <Card size="sm">
       <CardHeader>
         <CardTitle>Members</CardTitle>
         <CardDescription>
-          {workspace.members.length} of {memberLimit} members in this workspace
+          {reservedSeats} of {memberLimit} seat
+          {memberLimit === 1 ? "" : "s"} reserved
+          {pendingInvitationCount > 0
+            ? ` · ${workspace.members.length} active, ${pendingInvitationCount} pending`
+            : ""}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -159,7 +208,7 @@ export function WorkspaceMembersCard() {
               <div className="flex shrink-0 items-center gap-2">
                 <Badge variant="outline">{member.role}</Badge>
 
-                {isAdmin && (
+                {canRemoveMember(member) && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -179,7 +228,50 @@ export function WorkspaceMembersCard() {
           ))}
         </ul>
 
-        {canInviteMember && (
+        {workspace.pendingInvitations.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Pending invitations</p>
+            <ul className="divide-y rounded-lg border px-3">
+              {workspace.pendingInvitations.map((invitation) => (
+                <li
+                  key={invitation.id}
+                  className="flex items-center justify-between gap-3 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
+                      {invitation.email}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Invited as {invitation.role}
+                    </p>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge variant="secondary">pending</Badge>
+
+                    {canManageMembers && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={revokingInvitationId === invitation.id}
+                        onClick={() => handleRevokeInvitation(invitation)}
+                      >
+                        {revokingInvitationId === invitation.id ? (
+                          <LoaderCircle className="size-3.5 animate-spin" />
+                        ) : (
+                          <XIcon />
+                        )}
+                        Revoke
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {canManageMembers && canInviteMember && (
           <form
             className="flex flex-col gap-3 sm:flex-row sm:items-end"
             onSubmit={handleInvite}
@@ -236,10 +328,16 @@ export function WorkspaceMembersCard() {
           </p>
         )}
 
-        {!canInviteMember && (
+        {canManageMembers && !canInviteMember && (
           <p className="text-sm text-muted-foreground">
-            The member seat limit for this workspace is reached. Upgrade the
-            plan to invite more teammates.
+            All purchased seats are reserved. Upgrade the plan or revoke a
+            pending invitation to free a seat.
+          </p>
+        )}
+
+        {!canManageMembers && (
+          <p className="text-sm text-muted-foreground">
+            Only workspace admins can invite or remove members.
           </p>
         )}
       </CardContent>

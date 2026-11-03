@@ -34,6 +34,7 @@ export default async function Page() {
           <Button
             variant="ghost"
             size="icon"
+            nativeButton={false}
             render={<Link href="/dashboard/apps" />}
             className="mt-1"
           >
@@ -85,13 +86,20 @@ export default async function Page() {
             </p>
 
             <div className="flex flex-wrap gap-2">
-              <Button render={<Link href="/dashboard/billing" />}>
+              <Button
+                nativeButton={false}
+                render={<Link href="/dashboard/billing" />}
+              >
                 {workspace.plan === "Enterprise"
                   ? "View billing"
                   : "Upgrade workspace"}
               </Button>
 
-              <Button variant="outline" render={<Link href="/dashboard/apps" />}>
+              <Button
+                variant="outline"
+                nativeButton={false}
+                render={<Link href="/dashboard/apps" />}
+              >
                 Back to apps
               </Button>
             </div>

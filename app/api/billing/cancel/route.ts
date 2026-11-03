@@ -2,6 +2,8 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
 import { NextResponse } from "next/server";
 
+import { isCancelablePaidSubscriptionItem } from "@/lib/workspace/plan";
+
 export const runtime = "nodejs";
 
 /**
@@ -57,12 +59,16 @@ export async function POST() {
 
   const item = subscription.subscriptionItems.find(
     (subscriptionItem) =>
-      subscriptionItem.status === "active" && !subscriptionItem.canceledAt
+      isCancelablePaidSubscriptionItem(subscriptionItem) &&
+      !subscriptionItem.canceledAt
   );
 
   if (!item) {
     return NextResponse.json(
-      { error: "This subscription is already set to end." },
+      {
+        error:
+          "This workspace has no paid subscription renewal to cancel. It may already be set to end.",
+      },
       { status: 409 }
     );
   }

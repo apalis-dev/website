@@ -38,7 +38,10 @@ export default async function Apps() {
             New App
           </Button>
         ) : (
-          <Button render={<Link href="/dashboard/apps/new" />}>
+          <Button
+            nativeButton={false}
+            render={<Link href="/dashboard/apps/new" />}
+          >
             <PlusIcon className="size-4" />
             New App
           </Button>
@@ -60,7 +63,11 @@ export default async function Apps() {
             </p>
           </div>
 
-          <Button variant="outline" render={<Link href="/dashboard/billing" />}>
+          <Button
+            variant="outline"
+            nativeButton={false}
+            render={<Link href="/dashboard/billing" />}
+          >
             {workspace.plan === "Enterprise" ? "View billing" : "Upgrade plan"}
           </Button>
         </div>
@@ -107,7 +114,11 @@ export default async function Apps() {
             Create your first application to start receiving webhooks.
           </p>
 
-          <Button className="mt-6" render={<Link href="/dashboard/apps/new" />}>
+          <Button
+            className="mt-6"
+            nativeButton={false}
+            render={<Link href="/dashboard/apps/new" />}
+          >
             <PlusIcon className="size-4" />
             New App
           </Button>

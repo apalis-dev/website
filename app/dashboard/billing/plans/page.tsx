@@ -21,6 +21,7 @@ export default async function BillingPlansPage() {
         <Button
           variant="ghost"
           size="icon"
+          nativeButton={false}
           render={<Link href="/dashboard/billing" />}
         >
           <ArrowLeftIcon className="size-4" />

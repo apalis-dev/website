@@ -4,6 +4,7 @@ import {
   auth,
   clerkClient,
   type Organization,
+  type OrganizationInvitation,
   type OrganizationMembership,
 } from "@clerk/nextjs/server";
 import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
@@ -11,6 +12,7 @@ import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
 import type {
   DashboardApp,
   Workspace,
+  WorkspaceInvitation,
   WorkspaceMember,
   WorkspacePlan,
   WorkspaceSubscription,
@@ -293,6 +295,30 @@ const getOrganizationMemberships = cache(
   }
 );
 
+const getOrganizationInvitations = cache(
+  async (organizationId: string): Promise<OrganizationInvitation[]> => {
+    const client = await clerkClient();
+    const { data } = await client.organizations.getOrganizationInvitationList({
+      organizationId,
+      status: ["pending"],
+      limit: MEMBERSHIP_PAGE_LIMIT,
+    });
+
+    return data;
+  }
+);
+
+function toWorkspaceInvitation(
+  invitation: OrganizationInvitation
+): WorkspaceInvitation {
+  return {
+    id: invitation.id,
+    email: invitation.emailAddress,
+    role: invitation.role === "org:admin" ? "admin" : "member",
+    createdAt: new Date(invitation.createdAt).toISOString(),
+  };
+}
+
 export async function getOrganizationPlan(
   organizationId: string
 ): Promise<WorkspacePlan> {
@@ -330,8 +356,9 @@ export const getDashboardWorkspace = cache(async (): Promise<Workspace> => {
     throw error;
   }
 
-  const [memberships, subscription] = await Promise.all([
+  const [memberships, invitations, subscription] = await Promise.all([
     getOrganizationMemberships(orgId),
+    getOrganizationInvitations(orgId),
     getOrganizationBilling(orgId),
   ]);
 
@@ -350,6 +377,7 @@ export const getDashboardWorkspace = cache(async (): Promise<Workspace> => {
     slug: organization.slug,
     plan,
     members,
+    pendingInvitations: invitations.map(toWorkspaceInvitation),
     apps,
     subscription: buildSubscription(
       organization.id,

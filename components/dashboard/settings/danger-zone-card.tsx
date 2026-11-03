@@ -66,8 +66,9 @@ export function DangerZoneCard({ user }: DangerZoneCardProps) {
           <div>
             <p className="font-medium">Delete account</p>
             <p className="text-sm text-muted-foreground">
-              Permanently delete your account and profile. Workspaces and their
-              subscriptions are not deleted automatically.
+              Permanently delete your account and profile. Workspaces where you
+              are the only member are deleted too, and their subscriptions end
+              immediately. Workspaces with other members are kept.
             </p>
           </div>
 
@@ -90,8 +91,9 @@ export function DangerZoneCard({ user }: DangerZoneCardProps) {
               <span className="font-medium">
                 {user.primaryEmailAddress?.emailAddress}
               </span>
-              . You must not be the last admin of a workspace with other
-              members. This cannot be undone.
+              . If you own a workspace with other members, delete that
+              workspace first. If you are the last admin of a shared
+              workspace, add another admin first. This cannot be undone.
             </p>
 
             {error && (

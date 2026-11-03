@@ -53,12 +53,20 @@ export interface WorkspaceSubscription {
   clerkSubscriptionId?: string;
 }
 
+export interface WorkspaceInvitation {
+  id: string;
+  email: string;
+  role: "admin" | "member";
+  createdAt: string;
+}
+
 export interface Workspace {
   id: string;
   name: string;
   slug: string;
   plan: WorkspacePlan;
   members: WorkspaceMember[];
+  pendingInvitations: WorkspaceInvitation[];
   apps: DashboardApp[];
   subscription: WorkspaceSubscription;
   createdAt: string;

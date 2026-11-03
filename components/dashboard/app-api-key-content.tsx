@@ -5,8 +5,6 @@ import {
   CheckIcon,
   CopyIcon,
   KeyRoundIcon,
-  PlusIcon,
-  RefreshCwIcon,
   ShieldAlertIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -64,39 +62,22 @@ export function ApiKeyPage({ apiKeyId, apiKeyPreview }: ApiKeyPageProps) {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {hasKey ? (
-              <>
-                <Button variant="outline" size="sm" onClick={handleCopy}>
-                  {copied ? (
-                    <CheckIcon className="size-4 text-brand" />
-                  ) : (
-                    <CopyIcon className="size-4" />
-                  )}
+          {hasKey ? (
+            <Button variant="outline" size="sm" onClick={handleCopy}>
+              {copied ? (
+                <CheckIcon className="size-4 text-brand" />
+              ) : (
+                <CopyIcon className="size-4" />
+              )}
 
-                  {copied ? "Copied" : "Copy key ID"}
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => toast.info("Rotating API key…")}
-                >
-                  <RefreshCwIcon className="size-4" />
-                  Rotate Key
-                </Button>
-              </>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => toast.info("Creating API key…")}
-              >
-                <PlusIcon className="size-4" />
-                Create Key
-              </Button>
-            )}
-          </div>
+              {copied ? "Copied" : "Copy key ID"}
+            </Button>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Key creation will be available once Clerk API Keys is enabled for
+              this environment.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -114,17 +95,12 @@ export function ApiKeyPage({ apiKeyId, apiKeyPreview }: ApiKeyPageProps) {
               </div>
 
               <p className="mt-1 text-sm text-muted-foreground">
-                Permanently revoke this key. Applications using it will stop
-                authenticating immediately.
+                Revocation is not available yet. Applications using this key
+                will keep authenticating until key management is enabled.
               </p>
             </div>
 
-            <Button
-              variant="destructive"
-              size="sm"
-              disabled={!hasKey}
-              onClick={() => toast.error("API key revoked")}
-            >
+            <Button variant="destructive" size="sm" disabled>
               Revoke
             </Button>
           </div>
