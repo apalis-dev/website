@@ -1,6 +1,8 @@
 node_modules
 .next
 .contentlayer
+.pnp.*
+.yarn/
 examples/target
 .env
 .env.local
