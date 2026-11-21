@@ -1,0 +1,102 @@
+---
+title: PGMQ
+crate: apalis-pgmq
+kind: Postgres extension
+accent: from-indigo-500 to-violet-600
+excerpt: A lightweight queue inside Postgres.
+description: >-
+  PGMQ adds a simple message queue to Postgres without another service. Use it
+  when you want durable jobs and minimal operational overhead.
+license: PostgreSQL
+install: cargo add apalis apalis-pgmq
+docsUrl: https://docs.rs/apalis-pgmq
+repoUrl: https://github.com/apalis-dev/apalis-pgmq
+features:
+  - title: Postgres-native queue
+    description: Add a lightweight message queue without running another service.
+  - title: Polling and triggers
+    description: Use standard polling or trigger-based polling for new messages.
+  - title: Custom codecs
+    description: Serialize and deserialize job arguments as bytes.
+  - title: Middleware ready
+    description: Works with the Apalis worker and middleware stack.
+  - title: Minimal operations
+    description: If you already run Postgres, there is no new infrastructure to manage.
+  - title: Observability
+    description: Inspect queues with apalis-board and standard Postgres tooling.
+specs:
+  - label: Crate
+    value: apalis-pgmq
+  - label: Persistence
+    value: Postgres table
+  - label: Delivery
+    value: Reliable queue
+  - label: Workers
+    value: Multi-worker
+  - label: License
+    value: PostgreSQL
+bestFor:
+  - Postgres-only deployments
+  - Lightweight queueing
+  - Transactional enqueueing
+  - Minimal operations
+---
+
+## Setting up
+
+The quickest way to start is the PGMQ Postgres image, which comes with the extension pre-installed:
+
+```sh
+docker run -d --name pgmq-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 ghcr.io/pgmq/pg18-pgmq:v1.10.0
+```
+
+Then connect and enable PGMQ:
+
+```sh
+psql postgres://postgres:postgres@localhost:5432/postgres
+```
+
+```sql
+CREATE EXTENSION pgmq;
+```
+
+## Basic worker
+
+```rust
+use std::{collections::HashMap, env};
+
+use apalis::prelude::*;
+use apalis_pgmq::*;
+
+#[tokio::main]
+async fn main() {
+    let pool = PgPool::connect(env::var("DATABASE_URL").unwrap().as_str())
+        .await
+        .unwrap();
+
+    PGMQueue::setup(&pool).await.unwrap();
+    let mut backend = PGMQueue::new(pool);
+
+    backend.push(42).await.unwrap();
+
+    async fn send_reminder(_msg: usize, wrk: WorkerContext) -> Result<(), BoxDynError> {
+        wrk.stop()?;
+        Ok(())
+    }
+
+    let worker = WorkerBuilder::new("rango-tango-1")
+        .backend(backend)
+        .build(send_reminder);
+    worker.run().await.unwrap();
+}
+```
+
+## Bytes compatibility
+
+With the `bytes-compat` feature, use the `apalis_pgmq` schema for SQL commands:
+
+```sql
+SELECT apalis_pgmq.create($1);
+```
+
+The `bytes-compat` feature is not stable and is currently a patch — enable it only when you need bytes payloads.

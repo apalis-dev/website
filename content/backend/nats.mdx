@@ -1,0 +1,82 @@
+---
+title: NATS
+crate: apalis-nats
+kind: Message broker
+accent: from-emerald-400 to-teal-600
+excerpt: Build on NATS JetStream.
+description: >-
+  NatsJetStream turns JetStream streams into a reliable Apalis queue with pull
+  and push consumers, scheduling, and workflow support.
+license: MIT
+install: cargo add apalis apalis-nats
+docsUrl: https://docs.rs/apalis-nats
+repoUrl: https://github.com/apalis-dev/apalis-nats
+features:
+  - title: JetStream-backed queue
+    description: Use NATS JetStream for durable, distributed message storage.
+  - title: Pull and push consumers
+    description: Choose the consumption model that fits your workload.
+  - title: Custom codecs
+    description: Compression, encryption, and custom serialization are supported.
+  - title: Scheduling
+    description: Schedule one-off and periodic messages.
+  - title: Workflows and cron
+    description: Sequential workflows are supported; cron needs NATS 2.14 or newer.
+  - title: Middleware ready
+    description: Use the same Apalis middleware and worker APIs.
+specs:
+  - label: Crate
+    value: apalis-nats
+  - label: Persistence
+    value: JetStream
+  - label: Delivery
+    value: Reliable queue
+  - label: Workers
+    value: Multi-worker
+  - label: License
+    value: MIT
+bestFor:
+  - NATS-based platforms
+  - Distributed systems
+  - Scheduled and periodic jobs
+  - Workflow-heavy workloads
+---
+
+## Setting up
+
+```sh
+docker run -p 4222:4222 nats:2.14 -js
+```
+
+## Basic worker
+
+```rust
+use apalis::prelude::*;
+use apalis_nats::*;
+use futures::{self, SinkExt};
+use std::{collections::HashMap, env};
+
+#[tokio::main]
+async fn main() {
+    let nats_url = env::var("NATS_URL")
+        .unwrap_or_else(|_| "nats://localhost:4222".to_string());
+
+    let client = async_nats::connect(nats_url).await.unwrap();
+
+    let mut backend = NatsJetStream::new(client);
+
+    backend.push(42).await.unwrap();
+
+    async fn send_reminder(args: u32, wrk: WorkerContext) -> Result<(), BoxDynError> {
+        wrk.stop().unwrap();
+        Ok(())
+    }
+
+    let worker = WorkerBuilder::new("rango-tango-1")
+        .backend(backend)
+        .build(send_reminder);
+    worker.run().await.unwrap();
+}
+```
+
+The crate supports NATS 2.12 and newer; cron support requires NATS 2.14 or newer.

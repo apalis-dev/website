@@ -1,0 +1,116 @@
+---
+title: AMQP
+crate: apalis-amqp
+kind: Message broker
+accent: from-orange-500 to-red-600
+excerpt: Connect Apalis to RabbitMQ and AMQP brokers.
+description: >-
+  Use AMQP queues and exchanges as your task source. Apalis handles
+  acknowledgements, rejections, retries, and middleware while your broker
+  handles routing and delivery.
+license: Apache-2.0
+install: cargo add apalis apalis-amqp
+docsUrl: https://docs.rs/apalis-amqp
+repoUrl: https://github.com/apalis-dev/apalis-amqp
+features:
+  - title: RabbitMQ integration
+    description: Use AMQP queues and exchanges as your task source.
+  - title: Acknowledgements
+    description: Acknowledge or reject messages based on task outcomes.
+  - title: Middleware support
+    description: Rate limiting, timeouts, filtering, Sentry, Prometheus, and more.
+  - title: Result persistence
+    description: Persist task results to Redis, Postgres, SQLite, or another backend.
+  - title: Sequential workflows
+    description: Partial support for sequential workflows through apalis-workflow.
+  - title: Broker-level routing
+    description: Let RabbitMQ handle routing and delivery while Apalis handles execution.
+specs:
+  - label: Crate
+    value: apalis-amqp
+  - label: Persistence
+    value: Broker-managed
+  - label: Delivery
+    value: Ack / reject
+  - label: Workers
+    value: Multi-worker
+  - label: License
+    value: Apache-2.0
+bestFor:
+  - Existing RabbitMQ infrastructure
+  - Complex routing requirements
+  - Polyglot service fleets
+  - Message acknowledgement workflows
+---
+
+## Set up RabbitMQ
+
+```sh
+docker run -p 15672:15672 -p 5672:5672 -e RABBITMQ_DEFAULT_USER=apalis -e RABBITMQ_DEFAULT_PASS=apalis rabbitmq:4-management
+```
+
+## Basic example
+
+Add the crates to `Cargo.toml`:
+
+```toml
+[dependencies]
+apalis = "1"
+apalis-amqp = "1"
+```
+
+Then build a worker:
+
+```rust
+use apalis::prelude::*;
+use apalis_amqp::AmqpBackend;
+
+#[tokio::main]
+async fn main() {
+    let env = std::env::var("AMQP_ADDR").unwrap();
+    let mut backend = AmqpBackend::new_from_addr(&env).unwrap();
+
+    backend.push(42u32).await.unwrap();
+
+    async fn handle_message(task: u32) -> Result<(), BoxDynError> {
+        Ok(())
+    }
+
+    WorkerBuilder::new("rango-amigo")
+        .backend(backend)
+        .build(handle_message)
+        .run()
+        .await
+        .unwrap();
+}
+```
+
+## Workflow example
+
+```rust
+use apalis::prelude::*;
+use apalis_amqp::AmqpBackend;
+use apalis_workflow::SteppedFlow;
+
+#[tokio::main]
+async fn main() {
+    let env = std::env::var("AMQP_ADDR").unwrap();
+    let mut backend = AmqpBackend::new_from_addr(&env).unwrap();
+
+    let workflow = SteppedFlow::new("odd-numbers-workflow")
+        .and_then(|a: usize| async move { Ok::<_, BoxDynError>((0..a).collect::<Vec<_>>()) })
+        .and_then(|a: Vec<usize>| async move {
+            println!("Sum: {}", a.iter().sum::<usize>());
+            Ok::<_, BoxDynError>(())
+        });
+    backend.push(10).await.unwrap();
+
+    let worker = WorkerBuilder::new("rango-tango")
+        .backend(backend)
+        .on_event(|_ctx, ev| {
+            println!("On Event = {:?}", ev);
+        })
+        .build(workflow);
+    worker.run().await.unwrap();
+}
+```

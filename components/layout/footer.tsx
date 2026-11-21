@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import type { Route } from "next"
 import { Logo } from "../atoms/logo"
 import { Divider } from "./divider"
 import { Icon } from "../icons"
@@ -26,46 +27,6 @@ const menus = [
       { name: "Hooky", href: "https://github.com/apalis-dev/hooky", blank: true },
     ]
   },
-  {
-    name: "Backends",
-    items: [
-      {
-        name: "apalis-redis",
-        href: "https://docs.rs/apalis-redis",
-        blank: true
-      },
-      {
-        name: "apalis-postgres",
-        href: "https://docs.rs/apalis-postgres",
-        blank: true
-      },
-      {
-        name: "apalis-sqlite",
-        href: "https://docs.rs/apalis-sqlite",
-        blank: true
-      },
-      {
-        name: "apalis-mysql",
-        href: "https://docs.rs/apalis-mysql",
-        blank: true
-      },
-      {
-        name: "apalis-amqp",
-        href: "https://docs.rs/apalis-amqp",
-        blank: true
-      },
-      {
-        name: "apalis-nats",
-        href: "https://docs.rs/apalis-nats",
-        blank: true
-      },
-      {
-        name: "apalis-pgmq",
-        href: "https://docs.rs/apalis-pgmq",
-        blank: true
-      },
-    ]
-  }
 ]
 
 const socials = [
@@ -74,9 +35,17 @@ const socials = [
   { name: "Twitter", icon: "twitter", href: "https://twitter.com/apalis_dev" }
 ]
 
-export const Footer = () => {
+type FooterProps = {
+  backendLinks?: { name: string; href: string }[]
+}
+
+export const Footer = ({ backendLinks = [] }: FooterProps) => {
   const pathname = usePathname()
   const wide = pathname?.startsWith("/docs")
+  const allMenus: {
+    name: string
+    items: { name: string; href: string; blank?: boolean }[]
+  }[] = [...menus, { name: "Backends", items: backendLinks }]
 
   return (
     <div className={pathname === "/" ? "dark" : ""}>
@@ -97,7 +66,7 @@ export const Footer = () => {
             </p>
             <div className="flex items-center gap-4">
               {socials.map(({ name, icon, href }, index) => (
-                <Link key={index} href={href} className="generic-hover">
+                <Link key={index} href={href as Route} className="generic-hover">
                   <span className="sr-only">{name}</span>
                   <Icon
                     name={icon as Icon.Name}
@@ -108,14 +77,14 @@ export const Footer = () => {
             </div>
           </div>
           <div className="flex flex-wrap sm:gap-x-12 gap-y-6 sm:mt-0">
-            {menus.map(({ name, items }, index) => (
+            {allMenus.map(({ name, items }, index) => (
               <div key={index} className="w-1/2 sm:w-auto">
                 <h3 className="text-white mb-4">{name}</h3>
                 <ul className="space-y-2">
                   {items.map(({ name, href, blank }, index) => (
                     <li key={index}>
                       <Link
-                        href={href}
+                        href={href as Route}
                         className={`flex items-start ${pathname?.startsWith(href) ? "" : "button-hover"}`}
                         target={blank === true ? "_blank" : "_self"}
                       >
