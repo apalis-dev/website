@@ -8,6 +8,7 @@ import localFont from "next/font/local";
 import { ReactNode } from "react";
 import { Providers } from "./providers";
 import { headers } from "next/headers";
+import { allBackends } from "contentlayer/generated";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -61,7 +62,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="relative overflow-x-clip antialiased font-light bg-white dark:bg-[#09090B] text-zinc-700 dark:text-zinc-300">
         <Providers>
           {children}
-          <Footer />
+          <Footer
+            backendLinks={allBackends.map((backend) => ({
+              name: backend.crate,
+              href: backend.urlPath
+            }))}
+          />
           <Analytics />
         </Providers>
       </body>

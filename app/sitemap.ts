@@ -1,5 +1,6 @@
 import { MetadataRoute } from 'next'
 import { allDocsPages, allBlogPosts, allTutorials } from 'contentlayer/generated'
+import { allBackends } from 'contentlayer/generated'
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://apalis.dev'
@@ -23,6 +24,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     lastModified: new Date(),
     changeFrequency: 'weekly' as const,
     priority: 0.65,
+  }))
+
+  const backendUrls: MetadataRoute.Sitemap = allBackends.map((backend) => ({
+    url: `${baseUrl}${backend.urlPath}`,
+    lastModified: new Date(),
+    changeFrequency: 'monthly' as const,
+    priority: 0.7,
   }))
 
   // Static pages
@@ -57,7 +65,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'weekly' as const,
       priority: 0.8,
     },
+    {
+      url: `${baseUrl}/backend`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+    },
   ]
 
-  return [...staticUrls, ...docsUrls, ...blogUrls, ...tutorialUrls]
+  return [
+    ...staticUrls,
+    ...backendUrls,
+    ...docsUrls,
+    ...blogUrls,
+    ...tutorialUrls,
+  ]
 }

@@ -1,6 +1,7 @@
 import { Tutorial } from "./app/contentlayer/schema/tutorial";
 import { BlogPost } from "./app/contentlayer/schema/blog-post";
 import { DocsPage } from "./app/contentlayer/schema/docs-page";
+import { Backend } from "./app/contentlayer/schema/backend";
 import { makeSource } from "contentlayer/source-files";
 import remarkGfm from "remark-gfm";
 import type { Options as RehypePrettyCodeOptions } from "rehype-pretty-code";
@@ -37,7 +38,7 @@ const DEFAULT_REHYPE_PRETTY_CODE_OPTIONS: RehypePrettyCodeOptions = {
 
 export default makeSource({
   contentDirPath: "content",
-  documentTypes: [DocsPage, BlogPost, Tutorial],
+  documentTypes: [DocsPage, BlogPost, Tutorial, Backend],
   mdx: {
     // Use the development JSX transform outside production (better MDX debugging) and
     // the production transform for builds. Contentlayer caches compiled bodies keyed
