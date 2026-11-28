@@ -188,6 +188,9 @@ let backend = backend.before_start(|backend| async move {
 
 Use it to prepare resources or perform setup before the backend starts its normal readiness process.
 
+It also runs before every restart when a worker is managed by a `Monitor`, which makes it a good place to back off
+after a connection drop. See [Staying up when the backend restarts](/docs/guides/workers/reconnecting).
+
 ### after_start
 
 Runs after the backend's first successful readiness check.
