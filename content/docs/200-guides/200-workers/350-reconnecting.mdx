@@ -1,0 +1,81 @@
+---
+title: Staying up when the backend restarts
+excerpt: What happens to a worker when Redis or Postgres briefly goes away, and the few lines that bring it back cleanly.
+bottomNavigation: pagination
+---
+
+## What happens
+
+Your worker talks to its backend over a network connection. If Redis restarts, a deploy moves it, or the network
+drops for a moment, the next poll fails and the worker stops with an error. Jobs are not lost: they are still in
+the backend, waiting for a worker to pick them up again.
+
+So the question is just how the worker comes back.
+
+## Let the Monitor restart it
+
+Run your worker under a `Monitor` and tell it to restart on errors:
+
+```rust
+Monitor::new()
+    .register(|_restarts| {
+        WorkerBuilder::new("emails")
+            .backend(RedisStorage::new(conn.clone()))
+            .build(send_email)
+    })
+    .should_restart(|_, _| true)
+    .run()
+    .await?;
+```
+
+That alone brings the worker back. There is one catch.
+
+## Add a small pause between restarts
+
+When the worker comes back under the same name, the backend may still remember the old one for a little while
+and turn the new one away. The Monitor then tries again straight away, and again, very fast, until the old
+registration expires. Nothing breaks, but it burns CPU and hammers Redis for that time.
+
+The fix is to wait a bit before each restart, and wait a little longer each time. `before_start` runs right
+before the worker starts, so that's the place for it. The closure passed to `register` receives the restart
+count, which is handy for the delay:
+
+```rust
+Monitor::new()
+    .register(move |restarts| {
+        let backend = RedisStorage::new(conn.clone()).before_start(move |_| async move {
+            // 100 ms, 200 ms, 400 ms ... up to 5 s
+            if restarts > 0 {
+                let ms = (100u64 << (restarts - 1).min(16)).min(5_000);
+                tokio::time::sleep(Duration::from_millis(ms)).await;
+            }
+            Ok(())
+        });
+        WorkerBuilder::new("emails")
+            .backend(backend)
+            .build(send_email)
+    })
+    .should_restart(|_, _| true)
+    .run()
+    .await?;
+```
+
+With this in place, a Redis restart costs a handful of restart attempts instead of thousands, and the worker
+picks up where it left off.
+
+## Try it
+
+The [`reconnect` example](https://github.com/apalis-dev/apalis-redis/tree/main/examples) in apalis-redis does
+exactly this. Start it, then restart Redis while it runs:
+
+```bash
+REDIS_URL=redis://127.0.0.1:6379 cargo run --example reconnect
+docker restart <your-redis-container>
+```
+
+You'll see it carry on processing once Redis is back.
+
+## See also
+
+- [Monitoring](/docs/guides/workers/monitor) for restart policies and events.
+- [Backend extensions](/docs/guides/backend/backend-ext#before_start) for `before_start` and the other lifecycle hooks.
